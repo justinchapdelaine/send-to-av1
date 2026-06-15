@@ -68,8 +68,10 @@ The default storage preset uses CPU-based SVT-AV1 for maximum compression effici
 ```text
 Container: MKV
 Video encoder: libsvtav1
-CRF: 30
-Preset: 6
+CRF: 34
+Preset: 5
+GOP: 240
+SVT parameters: tune=0
 Pixel format: yuv420p10le
 Audio/subtitles/metadata/chapters: copied where possible
 ```
@@ -84,7 +86,7 @@ Video encoder: av1_nvenc
 Preset: p7
 Tune: uhq when available, otherwise hq
 Rate control: vbr
-CQ: 28
+CQ: 32
 Pixel format: p010le
 Audio/subtitles/metadata/chapters: copied where possible
 ```
@@ -109,10 +111,10 @@ Advanced parameters:
 
 ```powershell
 # CPU/SVT tuning
--Crf 30 -Preset 6
+-Crf 34 -Preset 5
 
 # NVIDIA tuning
--NvencPreset p7 -NvencTune auto -NvencCq 28  # CQ range: 0-63
+-NvencPreset p7 -NvencTune auto -NvencCq 32  # CQ range: 0-63
 
 # Output container
 -OutputContainer mkv  # default

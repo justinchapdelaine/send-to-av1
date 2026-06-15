@@ -51,6 +51,12 @@ Assert-True ($optimizerText -match [Regex]::Escape("Join-Path `$projectRoot (Joi
 Assert-True ($optimizerText -match [Regex]::Escape("[ValidateSet('mkv', 'mp4')]")) 'Optimizer is missing the output container validation set.'
 Assert-True ($optimizerText -match [Regex]::Escape('[switch]$Diagnostics')) 'Optimizer is missing -Diagnostics.'
 Assert-True ($optimizerText -match [Regex]::Escape('[switch]$DryRun')) 'Optimizer is missing -DryRun.'
+Assert-True ($optimizerText -match [Regex]::Escape('[int]$Crf = 34')) 'Optimizer default CRF is not the balanced storage value.'
+Assert-True ($optimizerText -match [Regex]::Escape('[int]$Preset = 5')) 'Optimizer default SVT preset is not the balanced storage value.'
+Assert-True ($optimizerText -match [Regex]::Escape('[int]$NvencCq = 32')) 'Optimizer default NVENC CQ is not the balanced storage value.'
+Assert-True ($optimizerText -match [Regex]::Escape("'-g', '240'")) 'Optimizer is missing the SVT GOP setting.'
+Assert-True ($optimizerText -match [Regex]::Escape("'-svtav1-params', 'tune=0'")) 'Optimizer is missing the SVT visual quality tuning setting.'
+Assert-True ($optimizerText -match [Regex]::Escape("ConvertFrom-Json")) 'Optimizer should parse ffprobe output as structured JSON.'
 Assert-True ($downloaderText -match [Regex]::Escape('function Test-LocalToolExecutables')) 'Downloader is missing the local executable presence check.'
 Assert-True ($downloaderText -match [Regex]::Escape('$localToolExecutablesAvailable = Test-LocalToolExecutables')) 'Downloader does not use the local executable presence check.'
 

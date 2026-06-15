@@ -28,13 +28,13 @@ param(
     [string]$OutputContainer = 'mkv',
 
     [ValidateRange(0, 63)]
-    [int]$Crf = 30,
+    [int]$Crf = 34,
 
     [ValidateRange(0, 13)]
-    [int]$Preset = 6,
+    [int]$Preset = 5,
 
     [ValidateRange(0, 63)]
-    [int]$NvencCq = 28,
+    [int]$NvencCq = 32,
 
     [ValidateSet('p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7')]
     [string]$NvencPreset = 'p7',
@@ -300,11 +300,13 @@ function New-EncoderConfiguration {
         return [PSCustomObject]@{
             Encoder = 'svt'
             DisplayName = 'SVT-AV1 CPU'
-            Summary = ('SVT-AV1, CRF {0}, preset {1}, 10-bit' -f $CrfValue, $PresetValue)
+            Summary = ('SVT-AV1, CRF {0}, preset {1}, GOP 240, tune 0, 10-bit' -f $CrfValue, $PresetValue)
             FfmpegVideoArgs = @(
                 '-c:v', 'libsvtav1',
                 '-crf', $CrfValue.ToString(),
                 '-preset', $PresetValue.ToString(),
+                '-g', '240',
+                '-svtav1-params', 'tune=0',
                 '-pix_fmt', 'yuv420p10le'
             )
         }
@@ -358,21 +360,27 @@ function Get-PrimaryVideoCodec {
         $probeArgs = @(
             '-v', 'error',
             '-select_streams', 'v:0',
-            '-show_entries', 'stream=codec_name',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
+            '-show_entries', 'stream=codec_name,codec_type',
+            '-of', 'json',
             $Path
         )
 
-        $codec = & $FfprobePath @probeArgs 2>$null | Select-Object -First 1
+        $probeOutput = & $FfprobePath @probeArgs 2>$null | Out-String
         if ($LASTEXITCODE -ne 0) {
             return $null
         }
 
-        if ([string]::IsNullOrWhiteSpace($codec)) {
+        if ([string]::IsNullOrWhiteSpace($probeOutput)) {
             return $null
         }
 
-        return $codec.Trim().ToLowerInvariant()
+        $probe = $probeOutput | ConvertFrom-Json
+        $stream = @($probe.streams | Where-Object { $_.codec_type -eq 'video' }) | Select-Object -First 1
+        if ($null -eq $stream -or [string]::IsNullOrWhiteSpace($stream.codec_name)) {
+            return $null
+        }
+
+        return $stream.codec_name.Trim().ToLowerInvariant()
     }
     catch {
         return $null
