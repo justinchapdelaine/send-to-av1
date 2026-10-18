@@ -112,6 +112,27 @@ try {
         $actualAspect = ($video.width / [double]$video.height) * ([double]$sar[0] / [double]$sar[1])
         Assert-True ([Math]::Abs($actualAspect - ([double]$dimensions[0] / [double]$dimensions[1])) -lt 0.001) 'Display aspect ratio changed.'
     }
+    # Measure actual keyframes across frame rates for both CPU modes.
+    foreach ($case in @(@('cpu-25', '25', 25.0, $false), @('small-60', '60', 60.0, $true))) {
+        $inputFile = Join-Path $tempRoot ($case[0] + '.mkv')
+        Invoke-Tool $ffmpeg @('-v', 'error', '-f', 'lavfi', '-i', ("testsrc2=size=128x128:rate={0}" -f $case[1]),
+            '-t', '21', '-c:v', 'ffv1', $inputFile) | Out-Null
+        $options = @('-Preset', '12', $inputFile)
+        if ($case[3]) { $options = @('-Small') + $options }
+        $log = Invoke-Optimizer $options
+        Assert-True ($log -match 'Processed:\s+1' -and $log -match 'Failed:\s+0') 'Keyframe cadence encode failed.'
+        $encoded = Join-Path $tempRoot ($case[0] + '_AV1.mkv')
+        $json = Invoke-Tool $ffprobe @('-v', 'error', '-select_streams', 'v:0', '-show_frames',
+            '-show_entries', 'frame=key_frame,best_effort_timestamp_time', '-of', 'json', $encoded)
+        $keys = @(($json | ConvertFrom-Json).frames | Where-Object { $_.key_frame -eq 1 })
+        Assert-True ($keys.Count -eq 3) ("Expected three keyframes in 21 seconds at {0} fps, found {1}." -f $case[1], $keys.Count)
+        for ($index = 1; $index -lt $keys.Count; $index++) {
+            $current = [double]::Parse($keys[$index].best_effort_timestamp_time, [Globalization.CultureInfo]::InvariantCulture)
+            $previous = [double]::Parse($keys[$index - 1].best_effort_timestamp_time, [Globalization.CultureInfo]::InvariantCulture)
+            $interval = $current - $previous
+            Assert-True ([Math]::Abs($interval - 10.0) -lt (2.0 / $case[2])) ("Keyframe interval was {0} seconds at {1} fps." -f $interval, $case[1])
+        }
+    }
     Write-Host ("Small-mode integration checks passed: {0}." -f $script:checks)
 }
 finally {

@@ -71,8 +71,8 @@ Container: MKV
 Video encoder: libsvtav1
 CRF: 34
 Preset: 5
-GOP: 240
-SVT parameters: tune=0
+Keyframe interval: approximately 10 seconds (adapts to frame rate)
+SVT parameters: keyint=10s:tune=0
 Pixel format: yuv420p10le
 Audio/subtitles/metadata/chapters: copied where possible
 ```
@@ -96,7 +96,7 @@ NVIDIA mode requires both FFmpeg `av1_nvenc` support and an NVIDIA GPU/driver wi
 
 ### Send to AV1 - Small
 
-The small-file preset uses CPU/SVT-AV1 at **CRF 38**, with preset 5 and the same 10-bit settings as the default CPU mode. Video fits within **1280x720**, preserving aspect ratio and never upscaling smaller inputs (output dimensions are even for 4:2:0 video).
+The small-file preset uses CPU/SVT-AV1 at **CRF 38**, with preset 5, the same approximately 10-second keyframe interval, and the same 10-bit settings as the default CPU mode. Video fits within **1280x720**, preserving aspect ratio and never upscaling smaller inputs (output dimensions are even for 4:2:0 video).
 
 Small mode **allows re-encoding existing AV1 files**, including OBS NVENC AV1 recordings. Re-encoding and downscaling sacrifice quality to reduce size; a smaller output is not guaranteed. All audio tracks are copied unchanged, along with other non-video streams where supported. Originals and existing outputs are preserved using the usual output naming rules.
 

@@ -304,13 +304,12 @@ function New-EncoderConfiguration {
         return [PSCustomObject]@{
             Encoder = 'svt'
             DisplayName = 'SVT-AV1 CPU'
-            Summary = ('SVT-AV1, CRF {0}, preset {1}, GOP 240, tune 0, 10-bit' -f $CrfValue, $PresetValue)
+            Summary = ('SVT-AV1, CRF {0}, preset {1}, keyframe interval ~10 seconds, tune 0, 10-bit' -f $CrfValue, $PresetValue)
             FfmpegVideoArgs = @(
                 '-c:v', 'libsvtav1',
                 '-crf', $CrfValue.ToString(),
                 '-preset', $PresetValue.ToString(),
-                '-g', '240',
-                '-svtav1-params', 'tune=0',
+                '-svtav1-params', 'keyint=10s:tune=0',
                 '-pix_fmt', 'yuv420p10le'
             )
         }
