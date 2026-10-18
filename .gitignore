@@ -1,0 +1,18 @@
+# Local FFmpeg binaries and downloaded archives
+bin/ffmpeg.exe
+bin/ffprobe.exe
+bin/ffmpeg-manifest.json
+bin/ffmpeg*.zip
+bin/ffmpeg*.7z
+bin/ffmpeg*.tar.*
+bin/ffmpeg*/
+
+# Temporary encode outputs
+*.tmp.*
+test-output/
+
+# Common local/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
