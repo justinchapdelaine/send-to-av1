@@ -30,7 +30,7 @@ Send to AV1 will:
 - copy audio, subtitles, chapters, attachments, and metadata where possible
 - skip obvious non-video files with a clear message
 - skip files that are already AV1 when `ffprobe` is available, except in Small mode
-- print FFmpeg capability and progress information in a console window
+- show a progress bar with processed video time, elapsed time, and estimated time remaining
 - process multiple selected files sequentially
 - print a summary at the end
 
@@ -140,6 +140,9 @@ Advanced parameters:
 # Checks without encoding
 -Diagnostics
 -DryRun
+
+# Keep detailed encoder diagnostics in the system temp folder
+-KeepLog
 ```
 
 Diagnostics mode prints FFmpeg, FFprobe, SVT-AV1, NVIDIA AV1 NVENC, and NVIDIA tune support without requiring input files:
@@ -152,6 +155,20 @@ Dry-run mode resolves inputs, chooses output names, and prints the FFmpeg comman
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -DryRun "C:\Path\Video.mp4"
+```
+
+## Encoding progress and diagnostics
+
+During encoding, the console shows the filename and its position in the selected batch, plus a progress bar, processed video time, elapsed time, and estimated time remaining. FFprobe supplies the total duration and FFmpeg supplies structured progress timestamps. The estimate changes with encoding speed; completion is reported only after FFmpeg succeeds and the output file is finalized.
+
+If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.
+
+Detailed FFmpeg/SVT output goes to a temporary diagnostic log instead of flooding the console. Error-level diagnostics are still shown as a warning when FFmpeg recovers and exits successfully; inspect the output before relying on it. Normal completion deletes the log. On failure, the most recent diagnostic lines are displayed before the log is deleted. If a log cannot be deleted, its path is reported and the encoded video is preserved. Handled interruptions also clean up; a forced shutdown may leave a temporary log behind.
+
+To retain diagnostics for troubleshooting, use `-KeepLog`. The log stays in the system temp folder and its location is printed, whether the encode succeeds or fails:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Small -KeepLog "C:\Path\Recording.mkv"
 ```
 
 ## Safety behavior
@@ -215,6 +232,12 @@ Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC e
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-SmallMode.ps1
+```
+
+Run the progress and diagnostic-log checks with FFmpeg/SVT-AV1 and FFprobe available. These cover progress calculations, real encoding timestamps, missing durations, native argument quoting, diagnostic retention and cleanup failures, recovered decoder errors, portable-only tool discovery, verbose failures, and encoder interruption:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-EncodingProgress.ps1
 ```
 
 ## Known limitations
