@@ -5,10 +5,6 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "OPTIMIZER=%SCRIPT_DIR%src\Optimize-AV1.ps1"
 set "DOWNLOADER=%SCRIPT_DIR%src\Download-FFmpeg.ps1"
-set "SENDTO=%APPDATA%\Microsoft\Windows\SendTo"
-set "CPU_LAUNCHER=%SENDTO%\Send to AV1.cmd"
-set "NVIDIA_LAUNCHER=%SENDTO%\Send to AV1 - NVIDIA.cmd"
-set "SMALL_LAUNCHER=%SENDTO%\Send to AV1 - Small.cmd"
 
 if not exist "%OPTIMIZER%" (
     echo Error: Optimize-AV1.ps1 was not found in the src folder.
@@ -44,83 +40,23 @@ if errorlevel 1 (
     pause
 )
 
-if not exist "%SENDTO%" (
-    mkdir "%SENDTO%"
-    if errorlevel 1 (
-        echo Error: Send To folder was not found and could not be created.
-        echo Expected: %SENDTO%
-        echo.
-        pause
-        exit /b 1
-    )
+where pwsh.exe >nul 2>nul
+if not errorlevel 1 (
+    pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%src\Install-SendTo.ps1"
+) else (
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%src\Install-SendTo.ps1"
 )
-
-> "%CPU_LAUNCHER%" echo @echo off
->> "%CPU_LAUNCHER%" echo setlocal
->> "%CPU_LAUNCHER%" echo where pwsh.exe ^>nul 2^>nul
->> "%CPU_LAUNCHER%" echo if not errorlevel 1 ^(
->> "%CPU_LAUNCHER%" echo     pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "%OPTIMIZER%" %%*
->> "%CPU_LAUNCHER%" echo ^) else ^(
->> "%CPU_LAUNCHER%" echo     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%OPTIMIZER%" %%*
->> "%CPU_LAUNCHER%" echo ^)
->> "%CPU_LAUNCHER%" echo exit /b %%ERRORLEVEL%%
-
 if errorlevel 1 (
-    echo Error: failed to create CPU Send To launcher.
-    echo Target: %CPU_LAUNCHER%
     echo.
+    echo Error: failed to install Send To shortcuts.
     pause
     exit /b 1
 )
 
-> "%NVIDIA_LAUNCHER%" echo @echo off
->> "%NVIDIA_LAUNCHER%" echo setlocal
->> "%NVIDIA_LAUNCHER%" echo where pwsh.exe ^>nul 2^>nul
->> "%NVIDIA_LAUNCHER%" echo if not errorlevel 1 ^(
->> "%NVIDIA_LAUNCHER%" echo     pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "%OPTIMIZER%" -Encoder nvenc %%*
->> "%NVIDIA_LAUNCHER%" echo ^) else ^(
->> "%NVIDIA_LAUNCHER%" echo     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%OPTIMIZER%" -Encoder nvenc %%*
->> "%NVIDIA_LAUNCHER%" echo ^)
->> "%NVIDIA_LAUNCHER%" echo exit /b %%ERRORLEVEL%%
-
-if errorlevel 1 (
-    echo Error: failed to create NVIDIA Send To launcher.
-    echo Target: %NVIDIA_LAUNCHER%
-    echo.
-    pause
-    exit /b 1
-)
-
-> "%SMALL_LAUNCHER%" echo @echo off
->> "%SMALL_LAUNCHER%" echo setlocal
->> "%SMALL_LAUNCHER%" echo where pwsh.exe ^>nul 2^>nul
->> "%SMALL_LAUNCHER%" echo if not errorlevel 1 ^(
->> "%SMALL_LAUNCHER%" echo     pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "%OPTIMIZER%" -Small %%*
->> "%SMALL_LAUNCHER%" echo ^) else ^(
->> "%SMALL_LAUNCHER%" echo     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%OPTIMIZER%" -Small %%*
->> "%SMALL_LAUNCHER%" echo ^)
->> "%SMALL_LAUNCHER%" echo exit /b %%ERRORLEVEL%%
-
-if errorlevel 1 (
-    echo Error: failed to create small-file Send To launcher.
-    echo Target: %SMALL_LAUNCHER%
-    echo.
-    pause
-    exit /b 1
-)
-
-echo Installed Send to AV1.
-echo Launchers:
-echo   %CPU_LAUNCHER%
-echo   %NVIDIA_LAUNCHER%
-echo   %SMALL_LAUNCHER%
 echo.
-echo Use it from File Explorer:
-echo Right-click one or more videos ^> Send to ^> Send to AV1
-echo Right-click one or more videos ^> Send to ^> Send to AV1 - NVIDIA
-echo Right-click one or more videos ^> Send to ^> Send to AV1 - Small
-echo.
-echo Note: the launchers point to this folder. If you move this folder, run Install-SendTo.cmd again.
+echo Installed Send to AV1. Select videos in Explorer and choose a Send to AV1 entry.
+echo Encoding progress will appear in a separate window.
+echo Run this installer again if you move the project folder.
 echo.
 pause
 exit /b 0

@@ -14,12 +14,12 @@ It converts selected video files to AV1 using FFmpeg, writing MKV by default whi
 The installer creates these per-user launchers:
 
 ```text
-%APPDATA%\Microsoft\Windows\SendTo\Send to AV1.cmd
-%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - NVIDIA.cmd
-%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - Small.cmd
+%APPDATA%\Microsoft\Windows\SendTo\Send to AV1.lnk
+%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - NVIDIA.lnk
+%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - Small.lnk
 ```
 
-No administrator rights are required. The launchers point to `src\Optimize-AV1.ps1` in the current project folder, so run `Install-SendTo.cmd` again if you move the folder.
+No administrator rights are required. The shortcuts open a WPF progress window using `src\Show-AV1Progress.ps1` in the current project folder, so run `Install-SendTo.cmd` again if you move the folder. Re-running the installer upgrades existing `.cmd` launchers to shortcuts and removes the old entries. Encoding starts automatically with the mode chosen in the Send to menu.
 
 ## What it does
 
@@ -31,7 +31,7 @@ Send to AV1 will:
 - omit data and unknown streams, such as MOV timecode tracks, that can prevent conversion to MKV
 - skip obvious non-video files with a clear message
 - skip files that are already AV1 when `ffprobe` is available, except in Small mode
-- show a progress bar with processed video time, elapsed time, and estimated time remaining
+- show a progress window with processed video time, elapsed time, and estimated time remaining
 - process multiple selected files sequentially
 - print a summary at the end
 
@@ -105,7 +105,7 @@ Run `Install-SendTo.cmd` again to add the new menu entry to an existing installa
 
 ## Manual usage
 
-Run the optimizer directly:
+The console interface remains available for scripts and troubleshooting. It uses the same encoding engine as the progress window. Run it directly:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 "C:\Path\Video.mp4"
@@ -160,17 +160,33 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -
 
 ## Encoding progress and diagnostics
 
-During encoding, the console shows the filename and its position in the selected batch, plus a progress bar, processed video time, elapsed time, and estimated time remaining. FFprobe supplies the total duration and FFmpeg supplies structured progress timestamps. The estimate changes with encoding speed; completion is reported only after FFmpeg succeeds and the output file is finalized.
+The Send to entries launch a Windows WPF window with the PowerShell console hidden. The window shows the mode, filename and batch position, a progress bar and percentage, processed video time, elapsed time, and estimated time remaining. A background worker performs the encoding so the window remains responsive. Manual console use shows the corresponding text progress bar.
+
+FFprobe supplies the total duration and FFmpeg supplies structured progress timestamps. The estimate changes with encoding speed; completion is reported only after FFmpeg succeeds and the output file is finalized.
+
+Use **Cancel** to stop the current encode and the remaining batch. The worker stops FFmpeg and removes the incomplete output; previously completed outputs and original files are kept. Closing the window during encoding asks whether to cancel, then leaves the window open until cleanup finishes. Afterward, use **Close** to dismiss it.
+
+Cancellation also stops FFprobe and capability checks during video inspection. Each inspection process has a 30-second timeout. A timed-out codec probe skips that file with a warning; a timed-out duration probe continues without a duration estimate. Timeouts on required capability checks are reported as failures.
+
+The results list shows completed, skipped, and failed files, including final output paths and size comparisons for completed files. **Open output folder** opens the folder of the most recently completed output. Expand **Details** for warnings and failure information. The window stays open when the batch finishes so the results can be reviewed.
 
 If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.
 
-Detailed FFmpeg/SVT output goes to a temporary diagnostic log instead of flooding the console. Error-level diagnostics are still shown as a warning when FFmpeg recovers and exits successfully; inspect the output before relying on it. Normal completion deletes the log. On failure, the most recent diagnostic lines are displayed before the log is deleted. If a log cannot be deleted, its path is reported and the encoded video is preserved. Handled interruptions also clean up; a forced shutdown may leave a temporary log behind.
+Detailed FFmpeg/SVT output goes to a temporary diagnostic log. Error-level diagnostics are still shown as a warning when FFmpeg recovers and exits successfully; inspect the output before relying on it. Normal completion deletes the log. On failure, the most recent diagnostic lines appear in **Details** (or in the console for manual use) before the log is deleted. If a log cannot be deleted, its path is reported and the encoded video is preserved. Handled interruptions also clean up; a forced shutdown may leave a temporary log behind.
 
 To retain diagnostics for troubleshooting, use `-KeepLog`. The log stays in the system temp folder and its location is printed, whether the encode succeeds or fails:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Small -KeepLog "C:\Path\Recording.mkv"
 ```
+
+To open the progress window manually, including with retained diagnostics:
+
+```powershell
+powershell.exe -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File .\src\Show-AV1Progress.ps1 -Small -KeepLog "C:\Path\Recording.mkv"
+```
+
+The WPF window requires Windows and STA mode. The installer prefers PowerShell 7 when installed and otherwise uses Windows PowerShell 5.1. No separate GUI runtime installation is required on a standard Windows desktop installation.
 
 ## Safety behavior
 
@@ -241,6 +257,27 @@ Run the progress and diagnostic-log checks with FFmpeg/SVT-AV1 and FFprobe avail
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-EncodingProgress.ps1
 ```
 
+Exercise the actual GUI background worker without opening a window. These checks cover structured progress, skipped files, startup failures, and cancellation during a batch, including child-process termination, temporary-file cleanup, and retention of earlier completed outputs:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiWorker.ps1
+```
+
+Check inspection cancellation and timeouts, including termination of stalled child processes, concurrent stdout/stderr capture, and cancellation propagation through every inspection stage:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Inspection.ps1
+```
+
+On Windows, validate the actual WPF layout and shortcut installation, upgrade, reinstallation, and removal. This test uses a temporary destination and does not alter the user's Send to entries. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
+
+```powershell
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
+pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
+```
+
+Before release, verify on an interactive Windows desktop that all three Send to entries open the window with the console hidden; multi-file selections (including spaces and Unicode paths) arrive intact; progress remains responsive; warnings and errors are visible; Cancel and closing an active window clean up; and completed results and output-folder navigation work. Verify NVIDIA encoding on supported hardware. The Windows integration test does not automate these Explorer and interactive window behaviors.
+
 ## Known limitations
 
 - Windows 11 may place **Send to** under the legacy context menu path depending on your system and Explorer behavior.
@@ -251,7 +288,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-EncodingPro
 - NVIDIA UHQ support depends on your FFmpeg build, NVIDIA driver, and Video Codec SDK support. If UHQ is unavailable, the script falls back to HQ.
 - MP4 output can fail when copied streams are not compatible with the MP4 container. Use the default MKV container for maximum preservation.
 - Portable FFmpeg downloads require GitHub access because BtbN publishes builds through GitHub releases.
-- Install/uninstall are CMD-based, but the optimizer itself still uses PowerShell. The launcher prefers PowerShell 7 when installed and falls back to Windows PowerShell 5.1. If your computer is heavily locked down by Group Policy, PowerShell script execution may still be blocked.
+- Install/uninstall use CMD wrappers and PowerShell helpers. The GUI and console interface use PowerShell, with the same shared encoding engine. If your computer is heavily locked down by Group Policy, PowerShell script execution may still be blocked.
 
 ## License
 

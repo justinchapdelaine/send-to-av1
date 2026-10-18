@@ -11,9 +11,10 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $optimizer = Join-Path $repoRoot 'src/Optimize-AV1.ps1'
+$core = Join-Path $repoRoot 'src/AV1.Core.psm1'
 $tokens = $null
 $errors = $null
-$ast = [Management.Automation.Language.Parser]::ParseFile($optimizer, [ref]$tokens, [ref]$errors)
+$ast = [Management.Automation.Language.Parser]::ParseFile($core, [ref]$tokens, [ref]$errors)
 if ($errors.Count -ne 0) { throw 'Optimizer failed to parse.' }
 $definitions = ($ast.FindAll({ param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst]
@@ -26,6 +27,8 @@ $script:checks = 0
 $script:interruptOnProgress = $false
 $script:lockDiagnosticLog = $false
 $script:updates = New-Object 'Collections.Generic.List[object]'
+$script:EventSink = $null
+$script:Cancellation = $null
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
