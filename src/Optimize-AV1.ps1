@@ -21,6 +21,8 @@ param(
 
     [switch]$DryRun,
 
+    [switch]$Small,
+
     [ValidateSet('svt', 'nvenc')]
     [string]$Encoder = 'svt',
 
@@ -106,7 +108,7 @@ function Resolve-ToolPath {
         return (Resolve-Path -LiteralPath $localTool).Path
     }
 
-    $command = Get-Command $ToolName -CommandType Application -ErrorAction SilentlyContinue
+    $command = Get-Command $ToolName -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $command) {
         return $command.Source
     }
@@ -411,6 +413,35 @@ function New-UniqueOutputPath {
     throw "Could not generate a unique output path for '$InputFile'."
 }
 
+function Complete-OutputFile {
+    param(
+        [string]$TemporaryPath,
+        [string]$OutputPath,
+        [string]$InputFile,
+        [string]$Container
+    )
+
+    for ($attempt = 0; $attempt -lt 10000; $attempt++) {
+        try {
+            # The two-argument File.Move never replaces an existing destination.
+            # A separate existence check followed by Move-Item -Force can race.
+            [System.IO.File]::Move($TemporaryPath, $OutputPath)
+            return $OutputPath
+        }
+        catch [System.IO.IOException] {
+            # Only retry name collisions; preserve the encoded temporary file
+            # and surface unrelated errors such as missing files or I/O failures.
+            if (-not (Test-Path -LiteralPath $TemporaryPath -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $OutputPath)) {
+                throw
+            }
+            $OutputPath = New-UniqueOutputPath -InputFile $InputFile -Container $Container
+        }
+    }
+
+    throw "Could not finalize output without overwriting an existing file. Encoded video remains at '$TemporaryPath'."
+}
+
 function New-TemporaryOutputPath {
     param(
         [string]$FinalOutputPath,
@@ -430,6 +461,7 @@ function Convert-VideoToAv1 {
         [PSCustomObject]$EncoderConfiguration,
         [string]$Container,
         [switch]$DryRun,
+        [switch]$Small,
         [string]$Path
     )
 
@@ -440,7 +472,7 @@ function Convert-VideoToAv1 {
     Write-Host ("Input:  {0}" -f $resolvedInput)
 
     $codec = Get-PrimaryVideoCodec -FfprobePath $FfprobePath -Path $resolvedInput
-    if ($codec -eq 'av1') {
+    if ($codec -eq 'av1' -and -not $Small) {
         Write-Host 'Skipped: source video codec is already AV1.' -ForegroundColor Yellow
         $Script:SkippedCount++
         return
@@ -531,7 +563,11 @@ function Convert-VideoToAv1 {
         return
     }
 
-    Move-Item -LiteralPath $tempOutput -Destination $finalOutput -Force
+    $completedOutput = Complete-OutputFile -TemporaryPath $tempOutput -OutputPath $finalOutput -InputFile $resolvedInput -Container $Container
+    if ($completedOutput -ne $finalOutput) {
+        Write-Host ("Output name was taken during encoding; saved as: {0}" -f $completedOutput)
+    }
+    $finalOutput = $completedOutput
 
     $outputItem = Get-Item -LiteralPath $finalOutput
     $Script:TotalInputBytes += [int64]$inputItem.Length
@@ -557,6 +593,16 @@ function Convert-VideoToAv1 {
 
 try {
     Write-Section 'Send to AV1'
+
+    if ($Small) {
+        if ($Encoder -ne 'svt') {
+            throw '-Small uses CPU/SVT-AV1 and cannot be combined with -Encoder nvenc.'
+        }
+        if (-not $PSBoundParameters.ContainsKey('Crf')) {
+            $Crf = 38
+        }
+        Write-Host 'Small-file mode: fit within 1280x720, allow AV1 re-encoding, copy audio unchanged.'
+    }
 
     $ffmpeg = Resolve-ToolPath -ToolName 'ffmpeg'
     if ([string]::IsNullOrWhiteSpace($ffmpeg)) {
@@ -596,6 +642,15 @@ try {
         -NvencPresetValue $NvencPreset `
         -NvencTuneValue $NvencTune
 
+    if ($Small) {
+        # Fit inside 720p without upscaling; even dimensions support 4:2:0 video.
+        $encoderConfiguration.FfmpegVideoArgs += @(
+            '-vf', "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
+        )
+        $encoderConfiguration.DisplayName = 'SVT-AV1 CPU - Small'
+        $encoderConfiguration.Summary += ', fit within 1280x720 without upscaling'
+    }
+
     foreach ($path in $InputPath) {
         if ([string]::IsNullOrWhiteSpace($path)) {
             continue
@@ -609,7 +664,7 @@ try {
         }
 
         try {
-            Convert-VideoToAv1 -FfmpegPath $ffmpeg -FfprobePath $ffprobe -EncoderConfiguration $encoderConfiguration -Container $OutputContainer -DryRun:$DryRun -Path $path
+            Convert-VideoToAv1 -FfmpegPath $ffmpeg -FfprobePath $ffprobe -EncoderConfiguration $encoderConfiguration -Container $OutputContainer -DryRun:$DryRun -Small:$Small -Path $path
         }
         catch {
             Write-Host ''

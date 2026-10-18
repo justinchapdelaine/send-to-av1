@@ -9,13 +9,14 @@ It converts selected video files to AV1 using FFmpeg, writing MKV by default whi
 1. Double-click `Install-SendTo.cmd`.
 2. Approve the FFmpeg download prompt if you want a portable FFmpeg install.
 3. Select one or more videos in File Explorer.
-4. Right-click, choose **Send to**, then choose **Send to AV1** or **Send to AV1 - NVIDIA**.
+4. Right-click, choose **Send to**, then choose **Send to AV1**, **Send to AV1 - NVIDIA**, or **Send to AV1 - Small**.
 
 The installer creates these per-user launchers:
 
 ```text
 %APPDATA%\Microsoft\Windows\SendTo\Send to AV1.cmd
 %APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - NVIDIA.cmd
+%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - Small.cmd
 ```
 
 No administrator rights are required. The launchers point to `src\Optimize-AV1.ps1` in the current project folder, so run `Install-SendTo.cmd` again if you move the folder.
@@ -28,7 +29,7 @@ Send to AV1 will:
 - leave the original video untouched
 - copy audio, subtitles, chapters, attachments, and metadata where possible
 - skip obvious non-video files with a clear message
-- skip files that are already AV1 when `ffprobe` is available
+- skip files that are already AV1 when `ffprobe` is available, except in Small mode
 - print FFmpeg capability and progress information in a console window
 - process multiple selected files sequentially
 - print a summary at the end
@@ -93,6 +94,14 @@ Audio/subtitles/metadata/chapters: copied where possible
 
 NVIDIA mode requires both FFmpeg `av1_nvenc` support and an NVIDIA GPU/driver with AV1 encode support. Seeing `av1_nvenc` in the capability summary means the FFmpeg build exposes the encoder; it does not prove this computer has NVIDIA hardware.
 
+### Send to AV1 - Small
+
+The small-file preset uses CPU/SVT-AV1 at **CRF 38**, with preset 5 and the same 10-bit settings as the default CPU mode. Video fits within **1280x720**, preserving aspect ratio and never upscaling smaller inputs (output dimensions are even for 4:2:0 video).
+
+Small mode **allows re-encoding existing AV1 files**, including OBS NVENC AV1 recordings. Re-encoding and downscaling sacrifice quality to reduce size; a smaller output is not guaranteed. All audio tracks are copied unchanged, along with other non-video streams where supported. Originals and existing outputs are preserved using the usual output naming rules.
+
+Run `Install-SendTo.cmd` again to add the new menu entry to an existing installation.
+
 ## Manual usage
 
 Run the optimizer directly:
@@ -106,6 +115,14 @@ NVIDIA mode:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Encoder nvenc "C:\Path\Video.mp4"
 ```
+
+Small-file mode (also accepts AV1 input):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Small "C:\Path\Recording.mkv"
+```
+
+`-Small` defaults to CRF 38; pass `-Crf` to override it, for example `-Small -Crf 40`. It cannot be combined with `-Encoder nvenc`. Other modes retain their existing defaults and skip already-AV1 files.
 
 Advanced parameters:
 
@@ -186,6 +203,18 @@ Run the lightweight repository checks without FFmpeg:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Repository.ps1
+```
+
+Run the output-safety regression checks without FFmpeg. These verify tool discovery with duplicate PATH matches and preserve both results when two processes finalize the same output name:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-OutputSafety.ps1
+```
+
+Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC encoder support) and FFprobe available. These generate short test clips in a temporary directory and verify AV1 re-encoding, resolution limits, unchanged audio tracks, output collisions, and existing-mode behavior. No NVIDIA GPU is needed for these checks.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-SmallMode.ps1
 ```
 
 ## Known limitations

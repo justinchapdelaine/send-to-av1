@@ -5,6 +5,7 @@ setlocal
 set "SENDTO=%APPDATA%\Microsoft\Windows\SendTo"
 set "CPU_LAUNCHER=%SENDTO%\Send to AV1.cmd"
 set "NVIDIA_LAUNCHER=%SENDTO%\Send to AV1 - NVIDIA.cmd"
+set "SMALL_LAUNCHER=%SENDTO%\Send to AV1 - Small.cmd"
 set "REMOVED=0"
 set "FAILED=0"
 
@@ -28,6 +29,18 @@ if exist "%NVIDIA_LAUNCHER%" (
         set "FAILED=1"
     ) else (
         echo Removed: %NVIDIA_LAUNCHER%
+        set "REMOVED=1"
+    )
+)
+
+if exist "%SMALL_LAUNCHER%" (
+    del /f /q "%SMALL_LAUNCHER%"
+    if errorlevel 1 (
+        echo Error: failed to remove Send to AV1 - Small launcher.
+        echo Target: %SMALL_LAUNCHER%
+        set "FAILED=1"
+    ) else (
+        echo Removed: %SMALL_LAUNCHER%
         set "REMOVED=1"
     )
 )
