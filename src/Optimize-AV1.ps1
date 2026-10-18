@@ -710,6 +710,8 @@ function Convert-VideoToAv1 {
         Write-Host ''
     }
 
+    # Select supported media types explicitly; data/unknown tracks (for example,
+    # MOV timecode) can prevent the output muxer from writing an otherwise valid video.
     $ffmpegArgs = @(
         '-hide_banner',
         '-loglevel', 'level+info',
@@ -719,7 +721,10 @@ function Convert-VideoToAv1 {
         '-stats_period', '1',
         '-y',
         '-i', $resolvedInput,
-        '-map', '0',
+        '-map', '0:v',
+        '-map', '0:a?',
+        '-map', '0:s?',
+        '-map', '0:t?',
         '-map_metadata', '0',
         '-map_chapters', '0',
         '-c', 'copy'

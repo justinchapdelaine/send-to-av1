@@ -57,6 +57,59 @@ try {
     $ffmpeg = Find-Tool 'ffmpeg'
     $ffprobe = Find-Tool 'ffprobe'
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    # MOV timecode tracks are data streams that cannot be muxed into MKV.
+    $timecodeSource = Join-Path $tempRoot 'timecode.mov'
+    Invoke-Tool $ffmpeg @('-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=128x128:rate=25',
+        '-f', 'lavfi', '-i', 'sine=frequency=440', '-f', 'lavfi', '-i', 'sine=frequency=660',
+        '-t', '0.4', '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'mpeg4',
+        '-c:a', 'aac', '-timecode', '01:00:00:00', $timecodeSource) | Out-Null
+    $json = Invoke-Tool $ffprobe @('-v', 'error', '-show_streams', '-of', 'json', $timecodeSource)
+    $streams = @(($json | ConvertFrom-Json).streams)
+    Assert-True (@($streams | Where-Object { $_.codec_type -eq 'data' -and $_.codec_tag_string -eq 'tmcd' }).Count -eq 1) 'Fixture must contain a real MOV timecode data track.'
+    $timecodeHash = (Get-FileHash -LiteralPath $timecodeSource).Hash
+    $audioBefore = Invoke-Tool $ffmpeg @('-v', 'error', '-i', $timecodeSource, '-map', '0:a', '-c', 'copy', '-f', 'streamhash', '-hash', 'sha256', '-')
+    foreach ($mode in @('cpu', 'small')) {
+        $options = @('-Preset', '12', $timecodeSource)
+        if ($mode -eq 'small') { $options = @('-Small') + $options }
+        $log = Invoke-Optimizer $options
+        Assert-True ($log -match 'Processed:\s+1' -and $log -match 'Failed:\s+0') ("MOV timecode conversion failed in {0} mode." -f $mode)
+        $encoded = Join-Path $tempRoot 'timecode_AV1.mkv'
+        if ($mode -eq 'small') { $encoded = Join-Path $tempRoot 'timecode_AV1_2.mkv' }
+        $json = Invoke-Tool $ffprobe @('-v', 'error', '-show_streams', '-of', 'json', $encoded)
+        $streams = @(($json | ConvertFrom-Json).streams)
+        Assert-True (@($streams | Where-Object { $_.codec_type -eq 'data' -or $_.codec_type -eq 'unknown' }).Count -eq 0) 'Unsupported streams reached the output.'
+        Assert-True ((Get-Video $encoded).codec_name -eq 'av1') 'Timecode fixture was not encoded to AV1.'
+        $audioAfter = Invoke-Tool $ffmpeg @('-v', 'error', '-i', $encoded, '-map', '0:a', '-c', 'copy', '-f', 'streamhash', '-hash', 'sha256', '-')
+        Assert-True (($audioBefore -split '\r?\n').Count -eq 2 -and $audioBefore -eq $audioAfter) 'Timecode conversion must preserve both AAC tracks byte-for-byte.'
+    }
+    Assert-True ((Get-FileHash -LiteralPath $timecodeSource).Hash -eq $timecodeHash) 'Timecode source was modified.'
+
+    # Explicit stream selection must retain supported subtitles and attachments,
+    # together with metadata and chapters, as well as every audio track.
+    $subtitle = Join-Path $tempRoot 'captions.srt'
+    $attachment = Join-Path $tempRoot 'note.txt'
+    $metadata = Join-Path $tempRoot 'chapters.txt'
+    Set-Content -LiteralPath $subtitle -Encoding Ascii -Value "1`n00:00:00,000 --> 00:00:00,300`nStream selection regression"
+    Set-Content -LiteralPath $attachment -Encoding Ascii -Value 'Preserve this attachment.'
+    Set-Content -LiteralPath $metadata -Encoding Ascii -Value ";FFMETADATA1`ntitle=Stream preservation`n[CHAPTER]`nTIMEBASE=1/1000`nSTART=0`nEND=400`ntitle=Opening"
+    $mediaSource = Join-Path $tempRoot 'supported-streams.mkv'
+    Invoke-Tool $ffmpeg @('-v', 'error', '-i', $timecodeSource, '-i', $subtitle, '-f', 'ffmetadata', '-i', $metadata,
+        '-map', '0:v', '-map', '0:a', '-map', '1:s', '-map_metadata', '2', '-map_chapters', '2',
+        '-c', 'copy', '-attach', $attachment, '-metadata:s:t', 'mimetype=text/plain', $mediaSource) | Out-Null
+    Invoke-Optimizer @('-Preset', '12', $mediaSource) | Out-Null
+    $encoded = Join-Path $tempRoot 'supported-streams_AV1.mkv'
+    $json = Invoke-Tool $ffprobe @('-v', 'error', '-show_streams', '-show_chapters', '-show_format', '-of', 'json', $encoded)
+    $media = $json | ConvertFrom-Json
+    Assert-True (@($media.streams | Where-Object { $_.codec_type -eq 'subtitle' -and $_.codec_name -eq 'subrip' }).Count -eq 1) 'Supported subtitle track was lost.'
+    Assert-True (@($media.streams | Where-Object { $_.codec_type -eq 'attachment' -and $_.tags.filename -eq 'note.txt' }).Count -eq 1) 'Attachment was lost.'
+    Assert-True ($media.format.tags.title -eq 'Stream preservation') 'Container metadata was lost.'
+    Assert-True (@($media.chapters).Count -eq 1 -and $media.chapters[0].tags.title -eq 'Opening') 'Chapter metadata was lost.'
+    $audioAfter = Invoke-Tool $ffmpeg @('-v', 'error', '-i', $encoded, '-map', '0:a', '-c', 'copy', '-f', 'streamhash', '-hash', 'sha256', '-')
+    Assert-True ($audioBefore -eq $audioAfter) 'Supported-stream conversion must preserve both AAC tracks byte-for-byte.'
+    $extracted = Join-Path $tempRoot 'extracted-note.txt'
+    Invoke-Tool $ffmpeg @('-v', 'error', '-dump_attachment:t:0', $extracted, '-i', $encoded, '-map', '0:v:0', '-t', '0', '-f', 'null', '-') | Out-Null
+    Assert-True ((Get-FileHash -LiteralPath $attachment).Hash -eq (Get-FileHash -LiteralPath $extracted).Hash) 'Attachment bytes were modified.'
+
     $source = Join-Path $tempRoot 'OBS recording.mkv'
     # Three independent AAC tracks mirror a common OBS recording setup.
     Invoke-Tool $ffmpeg @('-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1600x900:rate=5',

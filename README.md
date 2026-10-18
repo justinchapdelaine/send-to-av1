@@ -28,6 +28,7 @@ Send to AV1 will:
 - create a new AV1 file beside the original video, using MKV by default
 - leave the original video untouched
 - copy audio, subtitles, chapters, attachments, and metadata where possible
+- omit data and unknown streams, such as MOV timecode tracks, that can prevent conversion to MKV
 - skip obvious non-video files with a clear message
 - skip files that are already AV1 when `ffprobe` is available, except in Small mode
 - show a progress bar with processed video time, elapsed time, and estimated time remaining
@@ -228,7 +229,7 @@ Run the output-safety regression checks without FFmpeg. These verify tool discov
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-OutputSafety.ps1
 ```
 
-Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC encoder support) and FFprobe available. These generate short test clips in a temporary directory and verify AV1 re-encoding, resolution limits, unchanged audio tracks, output collisions, and existing-mode behavior. No NVIDIA GPU is needed for these checks.
+Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC encoder support) and FFprobe available. These generate short test clips in a temporary directory and verify AV1 re-encoding, resolution limits, unchanged audio tracks, output collisions, and existing-mode behavior. They also cover MOV timecode inputs and preservation of supported subtitles, attachments, metadata, and chapters. No NVIDIA GPU is needed for these checks.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-SmallMode.ps1
