@@ -139,6 +139,8 @@ Cancellation also stops FFprobe and capability checks during video inspection. E
 
 The window starts compact, with the results list hidden until there is a completed, skipped, failed, or cancelled file to report. It grows to show results and expanded details, with scrolling for longer batches and smaller screens. Each result has a status icon, filename, and readable size comparison; the full output path is secondary. Green indicates successful completion, amber indicates warnings or larger outputs, and red indicates failures. **Open output folder** opens the folder of the most recently completed output. **Details** opens automatically for errors and includes precise progress timestamps; it remains collapsed during normal operation. The window stays open when the batch finishes so the results can be reviewed.
 
+After encoding stops, the progress bar and timing panel are hidden. A completion heading replaces the current filename, with the total time taken underneath, including inspection and cleanup. Single-file success shows the result card without extra counts or a repeated completion label. Batches show completed, skipped, and failed counts together with total savings above the result cards. Cancellation, warnings, and failures retain their outcome messages and per-file statuses.
+
 The window and Send to shortcuts use the bundled AV1 icon. Re-run the installer after updating to rebuild the launcher with the new icon and refresh the shortcut icons.
 
 If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.

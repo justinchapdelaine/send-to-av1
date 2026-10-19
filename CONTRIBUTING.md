@@ -66,7 +66,7 @@ Verify the C# launcher's process options, mode selection, and native argument ha
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Launcher.ps1
 ```
 
-Check human-readable time estimates and result presentation without WPF, including unknown durations, finalization, long encodes, larger outputs, and non-completed files:
+Check human-readable time estimates and result presentation without WPF, including unknown durations, finalization, long encodes, larger outputs, and completion summaries for success, cancellation, and failures:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiPresentation.ps1

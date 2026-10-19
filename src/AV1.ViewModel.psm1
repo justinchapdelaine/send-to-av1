@@ -78,9 +78,68 @@ function Get-AV1ResultView {
     elseif ($Data.Status -eq 'Failed') { $color = '#B91C1C'; $glyph = [string][char]0x2715 }
     elseif ($Data.Status -eq 'Cancelled') { $glyph = [string][char]0x2014 }
     return [PSCustomObject]@{
-        Name = [IO.Path]::GetFileName($Data.Path); Status = $Data.Status; Description = $description
+        Name = [IO.Path]::GetFileName($Data.Path); Status = $Data.Status; Description = $description; ShowStatus = $true
         PathText = $path; Color = $color; Glyph = $glyph
     }
 }
 
-Export-ModuleMember -Function Format-AV1Clock, Format-AV1Size, Get-AV1ProgressView, Get-AV1ResultView
+function Get-AV1CompletionView {
+    param($Summary, [int]$FileCount, [double]$ElapsedSeconds, [bool]$HasWarnings, [bool]$Fatal)
+
+    $seconds = [long][Math]::Max(0, [Math]::Floor($ElapsedSeconds))
+    $duration = '{0}s' -f ($seconds % 60)
+    if ($seconds -ge 60) { $duration = '{0}m {1}' -f [long][Math]::Floor(($seconds % 3600) / 60.0), $duration }
+    if ($seconds -ge 3600) { $duration = '{0}h {1}' -f [long][Math]::Floor($seconds / 3600.0), $duration }
+
+    $title = 'Encoding complete'
+    if ($FileCount -gt 1) { $title = 'Batch complete' }
+    $color = '#15803D'
+    $subtitle = 'Finished in ' + $duration
+    $notice = ''
+    $showDetails = $false
+    $hideResultStatus = $false
+    if ($Fatal -or $null -eq $Summary) {
+        $title = 'Could not complete encoding'; $color = '#B91C1C'
+        $subtitle = 'Stopped after ' + $duration
+        $notice = 'See Details for the error.'; $showDetails = $true
+    }
+    elseif ($Summary.Cancelled) {
+        $title = 'Encoding cancelled'; $color = '#64748B'
+        $subtitle = 'Stopped after ' + $duration
+        $notice = 'Completed outputs have been kept.'
+        if ($Summary.Processed -eq 0) { $notice = 'No completed output files.' }
+    }
+    elseif ($Summary.Failed -gt 0) {
+        $title = 'Finished with errors'; $color = '#B91C1C'
+        $notice = 'See Details for errors.'; $showDetails = $true
+    }
+    elseif ($Summary.Processed -eq 0) {
+        $title = 'No files encoded'; $color = '#64748B'
+        if ($HasWarnings) {
+            $color = '#B45309'
+            $notice = 'See Details for warnings.'
+        }
+    }
+    elseif ($HasWarnings) {
+        $title = 'Finished with warnings'; $color = '#B45309'
+        $notice = 'See Details for warnings.'
+    }
+    elseif ($FileCount -eq 1 -and $Summary.Processed -eq 1 -and $Summary.Skipped -eq 0) {
+        $hideResultStatus = $true
+    }
+
+    $batchSummary = ''
+    if ($FileCount -gt 1 -and $null -ne $Summary) {
+        $batchSummary = '{0} completed {3} {1} skipped {3} {2} failed' -f $Summary.Processed, $Summary.Skipped, $Summary.Failed, [char]0xb7
+        if ($Summary.Processed -gt 0) {
+            if ($Summary.SavedBytes -ge 0) { $batchSummary += ' {0} {1} saved' -f [char]0xb7, (Format-AV1Size $Summary.SavedBytes) }
+            else { $batchSummary += ' {0} Outputs {1} larger overall' -f [char]0xb7, (Format-AV1Size (-$Summary.SavedBytes)) }
+        }
+    }
+    return [PSCustomObject]@{
+        Title = $title; Color = $color; Subtitle = $subtitle; Notice = $notice
+        BatchSummary = $batchSummary; ShowDetails = $showDetails; HideResultStatus = $hideResultStatus
+    }
+}
+
+Export-ModuleMember -Function Format-AV1Clock, Format-AV1Size, Get-AV1ProgressView, Get-AV1ResultView, Get-AV1CompletionView

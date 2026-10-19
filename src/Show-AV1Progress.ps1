@@ -45,6 +45,11 @@ try {
             <Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,6,10,0"/><Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
+        <Style x:Key="OptionalText" TargetType="TextBlock">
+            <Style.Triggers>
+                <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="EncodingProgress" TargetType="ProgressBar">
             <Setter Property="Foreground" Value="#2563EB"/>
             <Setter Property="Template">
@@ -95,14 +100,14 @@ try {
             <Ellipse Name="StatusDot" Grid.Column="1" Width="7" Height="7" Fill="#2563EB" Margin="0,0,7,0"/>
             <TextBlock Name="StatusLabel" Grid.Column="2" Text="Preparing" Foreground="#2563EB" FontWeight="SemiBold"/>
         </Grid>
-        <Grid Grid.Row="2" Margin="0,16,0,16">
+        <Grid Name="ProgressPanel" Grid.Row="2" Margin="0,16,0,16">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <ProgressBar Name="Progress" Height="8" Minimum="0" Maximum="100" IsIndeterminate="True"
                          VerticalAlignment="Center" Style="{StaticResource EncodingProgress}"/>
             <TextBlock Name="PercentLabel" Grid.Column="1" MinWidth="64" Text="..." FontSize="22" FontWeight="SemiBold"
                        Foreground="#2563EB" TextAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0"/>
         </Grid>
-        <Border Grid.Row="3" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" Padding="14">
+        <Border Name="TimingPanel" Grid.Row="3" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" Padding="14">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="1.3*"/></Grid.ColumnDefinitions>
                 <StackPanel>
@@ -119,13 +124,12 @@ try {
                 </StackPanel>
             </Grid>
         </Border>
-        <TextBlock Name="TimeLabel" Grid.Row="4" Margin="0,12,0,0" Foreground="#64748B" TextWrapping="Wrap">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock"><Style.Triggers>
-                    <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger>
-                </Style.Triggers></Style>
-            </TextBlock.Style>
-        </TextBlock>
+        <StackPanel Grid.Row="4">
+            <TextBlock Name="SummaryLabel" Style="{StaticResource OptionalText}" Margin="0,14,0,0"
+                       Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+            <TextBlock Name="TimeLabel" Style="{StaticResource OptionalText}" Margin="0,8,0,0"
+                       Foreground="#64748B" TextWrapping="Wrap"/>
+        </StackPanel>
         <ListBox Name="Results" Grid.Row="5" BorderThickness="0" Background="Transparent" MaxHeight="220" Margin="0,16,0,0"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.Style>
@@ -147,7 +151,13 @@ try {
                             <TextBlock Text="{Binding Glyph}" Foreground="{Binding Color}" FontFamily="Segoe UI Symbol" FontSize="18"/>
                             <StackPanel Grid.Column="1">
                                 <DockPanel>
-                                    <TextBlock Text="{Binding Status}" Foreground="{Binding Color}" DockPanel.Dock="Right" FontSize="11" Margin="12,0,0,0"/>
+                                    <TextBlock Text="{Binding Status}" Foreground="{Binding Color}" DockPanel.Dock="Right" FontSize="11" Margin="12,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock"><Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowStatus}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            </Style.Triggers></Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
                                 <TextBlock Text="{Binding Description}" Margin="0,4,0,0" TextWrapping="Wrap"/>
@@ -163,10 +173,9 @@ try {
             <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="110" FontFamily="Consolas" FontSize="11"
                      Foreground="#334155" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"/>
         </Expander>
-        <DockPanel Grid.Row="7" Margin="0,18,0,0">
+        <DockPanel Grid.Row="7" Margin="0,18,0,0" LastChildFill="False">
             <Button Name="ActionButton" DockPanel.Dock="Right" Content="Cancel" MinWidth="90" Padding="12,6"/>
             <Button Name="FolderButton" DockPanel.Dock="Right" Content="Open output folder" Margin="0,0,10,0" Padding="12,6" IsEnabled="False"/>
-            <TextBlock Name="SummaryLabel" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#64748B" FontSize="12" Margin="0,0,12,0"/>
         </DockPanel>
     </Grid>
     </ScrollViewer>
@@ -179,7 +188,8 @@ try {
     $controls = @{}
     foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
-            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander')) {
+            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
+            'ProgressPanel', 'TimingPanel')) {
         $controls[$name] = $window.FindName($name)
     }
     $iconPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'resources/SendToAV1.ico'
@@ -199,7 +209,9 @@ try {
     elseif ($Encoder -eq 'nvenc') { $mode = 'NVIDIA' }
     $controls.ModeLabel.Text = $mode
     $state = @{ Worker = $null; Running = $true; Started = $false; Summary = $null; Fatal = $false
-        HasWarnings = $false; OutputPath = $null; CurrentPath = $null; CurrentFinished = $true; LastProgress = $null }
+        HasWarnings = $false; OutputPath = $null; CurrentPath = $null; CurrentFinished = $true; LastProgress = $null
+        FileCount = 0; Clock = (New-Object Diagnostics.Stopwatch) }
+    if ($null -ne $InputPath) { $state.FileCount = $InputPath.Count }
 
     function Add-Detail {
         param([string]$Message)
@@ -256,6 +268,7 @@ try {
             'FileStarted' {
                 $state.CurrentPath = $data.Path
                 $state.CurrentFinished = $false
+                $state.FileCount = $data.FileCount
                 $state.LastProgress = $null
                 $controls.BatchLabel.Text = 'File {0} of {1}' -f $data.FileNumber, $data.FileCount
                 if (-not $state.Worker.Cancellation.IsCancellationRequested) {
@@ -322,8 +335,12 @@ try {
 
     function Finish-Window {
         $state.Running = $false
+        $state.Clock.Stop()
         $controls.Progress.IsIndeterminate = $false
-        if ($controls.Progress.Value -lt 100) { $controls.PercentLabel.Text = [string][char]0x2014 }
+        $controls.ProgressPanel.Visibility = 'Collapsed'
+        $controls.TimingPanel.Visibility = 'Collapsed'
+        $controls.StatusDot.Visibility = 'Collapsed'
+        $controls.StatusLabel.Visibility = 'Collapsed'
         $controls.ActionButton.Content = 'Close'
         $controls.ActionButton.IsEnabled = $true
         $controls.RemainingValue.Text = [string][char]0x2014
@@ -333,31 +350,21 @@ try {
             $state.LastProgress = $null
         }
         $summary = $state.Summary
-        if ($state.Fatal -or $null -eq $summary) {
-            Set-Phase 'Could not complete encoding' '#B91C1C'
-            $controls.TimeLabel.Text = 'See Details for the error.'
-            $controls.DetailsExpander.IsExpanded = $true
+        if ($null -ne $summary -and $summary.Cancelled -and -not $state.CurrentFinished) {
+            Add-Result ([PSCustomObject]@{ Path = $state.CurrentPath; Status = 'Cancelled'; Message = 'Remaining encodes stopped.' })
         }
-        else {
-            if ($summary.Cancelled) {
-                Set-Phase 'Cancelled' '#64748B'
-                if (-not $state.CurrentFinished) {
-                    Add-Result ([PSCustomObject]@{ Path = $state.CurrentPath; Status = 'Cancelled'; Message = 'Remaining encodes stopped.' })
-                }
-            }
-            elseif ($summary.Failed -gt 0) {
-                Set-Phase 'Finished with errors' '#B91C1C'
-                $controls.DetailsExpander.IsExpanded = $true
-            }
-            elseif ($state.HasWarnings) { Set-Phase 'Finished with warnings' '#B45309' }
-            else { Set-Phase 'Finished' '#15803D' }
-            $controls.SummaryLabel.Text = '{0} completed {3} {1} skipped {3} {2} failed' -f $summary.Processed, $summary.Skipped, $summary.Failed, [char]0xb7
-            if ($summary.Processed -gt 0) {
-                if ($summary.SavedBytes -ge 0) { $controls.TimeLabel.Text = '{0} saved across completed files.' -f (Format-AV1Size $summary.SavedBytes) }
-                else { $controls.TimeLabel.Text = 'Completed outputs are larger overall. See individual results.' }
-            }
-            else { $controls.TimeLabel.Text = 'No completed output files.' }
-            if ($summary.Failed -gt 0 -or $state.HasWarnings) { $controls.TimeLabel.Text += ' See Details for errors or warnings.' }
+        $view = Get-AV1CompletionView -Summary $summary -FileCount $state.FileCount `
+            -ElapsedSeconds $state.Clock.Elapsed.TotalSeconds -HasWarnings $state.HasWarnings -Fatal $state.Fatal
+        $controls.FileLabel.Text = $view.Title
+        $controls.FileLabel.ToolTip = $null
+        $controls.FileLabel.Foreground = $view.Color
+        $controls.BatchLabel.Text = $view.Subtitle
+        $controls.SummaryLabel.Text = $view.BatchSummary
+        $controls.TimeLabel.Text = $view.Notice
+        if ($view.ShowDetails) { $controls.DetailsExpander.IsExpanded = $true }
+        if ($view.HideResultStatus -and $controls.Results.Items.Count -eq 1) {
+            $controls.Results.Items[0].ShowStatus = $false
+            $controls.Results.Items.Refresh()
         }
     }
 
@@ -411,6 +418,7 @@ try {
         $state.Started = $true
         try {
             $options = @{ InputPath = $InputPath; Encoder = $Encoder; Small = [bool]$Small; KeepLog = [bool]$KeepLog }
+            $state.Clock.Start()
             $state.Worker = Start-AV1Worker -Options $options
             $timer.Start()
         }

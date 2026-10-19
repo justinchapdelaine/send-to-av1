@@ -52,7 +52,8 @@ try {
     finally { $reader.Close() }
     foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
-            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander')) {
+            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
+            'ProgressPanel', 'TimingPanel')) {
         Assert-True ($null -ne $window.FindName($name)) ('Missing WPF control: ' + $name)
     }
     Assert-True ($window.SizeToContent -eq 'Height') 'The window reserves a fixed height.'
@@ -70,7 +71,8 @@ try {
     $controls = @{}
     foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
-            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander')) {
+            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
+            'ProgressPanel', 'TimingPanel')) {
         $controls[$name] = $window.FindName($name)
     }
     $tokens = $null; $errors = $null
@@ -81,7 +83,9 @@ try {
     . ([scriptblock]::Create($definitions))
     $cancellation = New-Object Threading.CancellationTokenSource
     try {
-        $state = @{ Worker = [PSCustomObject]@{ Cancellation = $cancellation }; LastProgress = $null; HasWarnings = $false }
+        $state = @{ Worker = [PSCustomObject]@{ Cancellation = $cancellation }; LastProgress = $null; HasWarnings = $false
+            Clock = [Diagnostics.Stopwatch]::StartNew(); Running = $true; Summary = $null; Fatal = $false
+            FileCount = 1; CurrentPath = 'fixture.mkv'; CurrentFinished = $true }
         $progress = [PSCustomObject]@{
             Percent = 25; SecondsRemaining = 480; Finalizing = $false
             DurationSeconds = 1200; ProcessedSeconds = 300; ElapsedSeconds = 160; Status = 'Precise progress'
@@ -98,6 +102,31 @@ try {
         } })
         Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.StatusLabel.Text -eq 'Failed') 'A failed file did not reveal its error details.'
         Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FFB91C1C') 'A failure did not use the error color.'
+        $results.Items.Clear()
+        $controls.DetailsExpander.IsExpanded = $false
+        Update-Window ([PSCustomObject]@{ Type = 'FileResult'; Data = [PSCustomObject]@{
+            Path = 'fixture.mkv'; Status = 'Completed'; Message = ''; InputBytes = 10MB; OutputBytes = 5MB; OutputPath = 'fixture_AV1.mkv'
+        } })
+        $state.Summary = [PSCustomObject]@{ Processed = 1; Skipped = 0; Failed = 0; SavedBytes = 5MB; Cancelled = $false }
+        Finish-Window
+        Assert-True ($controls.ProgressPanel.Visibility -eq 'Collapsed' -and $controls.TimingPanel.Visibility -eq 'Collapsed') 'Finished encoding still shows progress or timing panels.'
+        Assert-True ($controls.StatusLabel.Visibility -eq 'Collapsed' -and $controls.StatusDot.Visibility -eq 'Collapsed') 'Finished encoding repeats the phase label.'
+        Assert-True ($controls.FileLabel.Text -eq 'Encoding complete' -and $controls.BatchLabel.Text -match '^Finished in ') 'Completion did not replace the filename heading and batch position.'
+        Assert-True ($controls.SummaryLabel.Text -eq '' -and $controls.TimeLabel.Text -eq '' -and -not $results.Items[0].ShowStatus) 'Single-file success repeats counts, savings, or status.'
+        Assert-True (-not $state.Clock.IsRunning -and $controls.ActionButton.Content -eq 'Close') 'Completion did not stop timing or enable closing.'
+        Assert-True ([Windows.Controls.Grid]::GetRow($controls.SummaryLabel.Parent) -lt [Windows.Controls.Grid]::GetRow($results)) 'Batch summary is not above the result cards.'
+
+        $state.FileCount = 3
+        $state.Summary.Processed = 2; $state.Summary.Skipped = 1
+        $state.HasWarnings = $true
+        Finish-Window
+        Assert-True ($controls.SummaryLabel.Text -match '2 completed.*1 skipped.*0 failed.*saved') 'Batch completion lost its counts or total savings.'
+        $state.Summary.Cancelled = $true; $state.CurrentFinished = $false
+        Finish-Window
+        Assert-True ($controls.FileLabel.Text -eq 'Encoding cancelled' -and $results.Items[$results.Items.Count - 1].Status -eq 'Cancelled') 'Cancellation lost its heading or unfinished-file result.'
+        $state.Fatal = $true
+        Finish-Window
+        Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.FileLabel.Text -eq 'Could not complete encoding') 'Fatal completion hid error details.'
         $results.Items.Clear()
     }
     finally { $cancellation.Dispose() }

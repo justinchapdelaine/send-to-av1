@@ -47,6 +47,8 @@ Encoding starts automatically. The window shows the current file, its position i
 
 Use **Cancel** to stop the current encode and the rest of the batch. Incomplete output is removed; completed files remain. When finished, review the size comparisons or choose **Open output folder**. **Details** opens automatically for errors and can be expanded for other diagnostic information.
 
+When encoding finishes, progress and timing fields are replaced by a completion heading and time taken. Result cards show each file's size comparison and output path; batches also show counts and total savings above the cards.
+
 ## Encoding modes
 
 | Send to entry | Encoder | Best for | Resolution | Existing AV1 input |
