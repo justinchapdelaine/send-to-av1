@@ -15,13 +15,14 @@ if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
     throw 'Run this integration test with PowerShell -STA.'
 }
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$installer = Join-Path $repoRoot 'src/Install-SendTo.ps1'
 $shellPath = (Get-Process -Id $PID).Path
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('send-to-av1-windows-' + [Guid]::NewGuid().ToString('N'))
+$projectRoot = Join-Path $tempRoot 'Project with spaces'
+$installer = Join-Path $projectRoot 'src/Install-SendTo.ps1'
 $script:checks = 0
 $shell = $null
 $window = $null
-$launcherPath = Join-Path $tempRoot 'bin/SendToAV1.Launcher.exe'
+$launcherPath = Join-Path $projectRoot 'bin/SendToAV1.Launcher.exe'
 $originalRecord = $env:SEND_TO_AV1_LAUNCHER_TEST_RECORD
 
 function Assert-True {
@@ -32,7 +33,8 @@ function Assert-True {
 
 function Invoke-Installer {
     param([switch]$Uninstall)
-    $options = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installer, '-SendToDirectory', $tempRoot, '-LauncherPath', $launcherPath)
+    # Omit LauncherPath to exercise the same default as Install-SendTo.cmd.
+    $options = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installer, '-SendToDirectory', $tempRoot)
     if ($Uninstall) { $options += '-Uninstall' }
     & $shellPath @options
     if ($LASTEXITCODE -ne 0) { throw 'Shortcut installer failed.' }
@@ -112,6 +114,16 @@ try {
     $window = $null
 
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    New-Item -ItemType Directory -Path $projectRoot | Out-Null
+    foreach ($directory in @('src', 'resources')) {
+        Copy-Item -LiteralPath (Join-Path $repoRoot $directory) -Destination $projectRoot -Recurse
+    }
+    # Also exercise the standalone builder's default output path. All generated
+    # files stay in the temporary project, away from the installed launcher.
+    & $shellPath -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'src/Build-Launcher.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Launcher build with the default output path failed.' }
+    Assert-True (Test-Path -LiteralPath $launcherPath -PathType Leaf) 'Default launcher output is not relative to the project.'
+    Remove-Item -LiteralPath $launcherPath
     $names = @('Send to AV1', 'Send to AV1 - NVIDIA', 'Send to AV1 - Small')
     foreach ($name in $names) { Set-Content -LiteralPath (Join-Path $tempRoot ($name + '.cmd')) -Value 'legacy launcher' }
     Set-Content -LiteralPath (Join-Path $tempRoot 'unrelated.txt') -Value 'keep this file'
@@ -132,7 +144,7 @@ try {
         try {
             Assert-True ($shortcut.TargetPath -eq $launcherPath) 'Shortcut does not target the windowless launcher.'
             Assert-True ($shortcut.IconLocation -eq ($launcherPath + ',0')) 'Shortcut does not use the AV1 application icon.'
-            Assert-True ($shortcut.Arguments.Contains(('"{0}"' -f (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')))) 'GUI path was not quoted correctly.'
+            Assert-True ($shortcut.Arguments.Contains(('"{0}"' -f (Join-Path $projectRoot 'src/Show-AV1Progress.ps1')))) 'GUI path was not quoted correctly.'
             if ($name -like '*NVIDIA') { Assert-True ($shortcut.Arguments -match '--mode nvidia') 'NVIDIA shortcut lost its mode.' }
             elseif ($name -like '*Small') { Assert-True ($shortcut.Arguments -match '--mode small') 'Small shortcut lost its mode.' }
             else { Assert-True ($shortcut.Arguments -match '--mode cpu') 'CPU shortcut lost its mode.' }

@@ -8,7 +8,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 param(
     [switch]$Uninstall,
     [string]$SendToDirectory = [Environment]::GetFolderPath('SendTo'),
-    [string]$LauncherPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin/SendToAV1.Launcher.exe')
+    [string]$LauncherPath
 )
 
 Set-StrictMode -Version 2.0
@@ -38,6 +38,10 @@ if ($Uninstall) {
     return
 }
 
+# Windows PowerShell may not populate PSScriptRoot during parameter binding.
+if ([string]::IsNullOrWhiteSpace($LauncherPath)) {
+    $LauncherPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'bin/SendToAV1.Launcher.exe'
+}
 $guiPath = Join-Path $PSScriptRoot 'Show-AV1Progress.ps1'
 foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 'AV1.ViewModel.psm1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $name) -PathType Leaf)) {

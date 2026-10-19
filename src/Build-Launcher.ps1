@@ -6,12 +6,16 @@ SPDX-License-Identifier: GPL-3.0-or-later
 #>
 [CmdletBinding()]
 param(
-    [string]$OutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin/SendToAV1.Launcher.exe')
+    [string]$OutputPath
 )
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
     throw 'Building the Send to launcher requires Windows.'
+}
+# Resolve script-relative defaults after parameter binding for Windows PowerShell.
+if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+    $OutputPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'bin/SendToAV1.Launcher.exe'
 }
 $compiler = $null
 foreach ($framework in @('Framework64', 'Framework')) {
