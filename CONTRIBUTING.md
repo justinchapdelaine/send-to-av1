@@ -122,7 +122,7 @@ Also verify interactive setup from each `.vbs` and `.cmd` entry point, with and 
 
 For both install and uninstall, confirm starting setup replaces the folder card, choices, and buttons with the compact folder path, current step, progress, Details, and a wait message. Success should show the result and a single primary Close action. On warnings or failures, retry and Close must return; only installation should restore the download choice. Retrying must use the current choice and clear the previous attempt's Details. Check the compact layout with long folder paths and large Windows text settings.
 
-Check the download checkbox in light, dark, and high-contrast themes. Its checked and unchecked states must be clear before hovering, with visible Tab focus and Space toggling. Confirm it stays readable while disabled during setup and restores its appearance when setup finishes or fails.
+Check the download checkbox in light, dark, and high-contrast themes. Its checked and unchecked states must be clear before hovering, with visible Tab focus and Space toggling. Confirm it hides while setup runs and after success, and returns enabled with its previous selection after a warning or failure. Disabled checkbox styling is covered programmatically by [Test-WindowsSetup.ps1](tests/Test-WindowsSetup.ps1).
 
 In the installer, uninstaller, and encoding window, check the shared Details header: the chevron points right when collapsed and down when expanded, clicking either the arrow or label toggles the content, and Tab/Space works with a visible focus ring. Confirm hover feedback and theme changes remain readable and collapsed Details reserves no content area.
 

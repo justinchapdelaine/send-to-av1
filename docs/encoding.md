@@ -44,7 +44,7 @@ The small-file preset uses CPU/SVT-AV1 at **CRF 38**, with preset 5, the same ap
 
 Small mode **allows re-encoding existing AV1 files**, including OBS NVENC AV1 recordings. Re-encoding and downscaling sacrifice quality to reduce size; a smaller output is not guaranteed. All audio tracks are copied unchanged, along with other non-video streams where supported. Originals and existing outputs are preserved using the usual output naming rules.
 
-Run `Install-SendTo.cmd` again to add the new menu entry to an existing installation.
+To refresh the Send to entries in an existing installation, open `Install-SendTo.vbs` and choose **Install**.
 
 ## Manual usage
 
@@ -114,7 +114,9 @@ Send to AV1 looks for FFmpeg in this order:
    - `ffmpeg`
    - `ffprobe`
 
-Conversion uses installed tools without checking for updates. During install, Send to AV1 checks the local `bin` folder and can download or update portable FFmpeg tools when you approve the prompt. If GitHub cannot be reached but local FFmpeg tools are already installed, the installer keeps using them.
+Encoding uses installed tools without checking for updates.
+
+To install or update portable tools in `bin`, open `Install-SendTo.vbs`, leave **Download or update portable FFmpeg** selected, and choose **Install**. Clear the checkbox if you provide your own tools. If GitHub cannot be reached but local FFmpeg tools are already installed, the installer keeps using them.
 
 Download or update portable FFmpeg manually:
 
