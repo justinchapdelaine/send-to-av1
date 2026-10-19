@@ -1,10 +1,10 @@
 # Send to AV1
 
-Convert videos to AV1 from the Windows **Send to** menu, with a simple progress window and your original files kept intact.
+Convert videos to AV1 from the Windows **Send to** menu, with simple setup and progress windows. Your original files stay intact.
 
 Choose CPU encoding for quality and compression, NVIDIA encoding for speed, or Small mode for smaller files. Outputs are saved beside the originals as MKV files, with audio and other supported streams copied without re-encoding.
 
-[Installation](#installation) · [Usage](#usage) · [Encoding modes](#encoding-modes) · [Troubleshooting](#troubleshooting) · [Contributing](CONTRIBUTING.md)
+[Installation](#installation) · [Usage](#usage) · [Encoding modes](#encoding-modes) · [Troubleshooting](#troubleshooting) · [Uninstall](#uninstall) · [Contributing](CONTRIBUTING.md)
 
 ## Features
 
@@ -13,13 +13,14 @@ Choose CPU encoding for quality and compression, NVIDIA encoding for speed, or S
 - Compare input and output sizes when each file finishes.
 - Preserve audio tracks, subtitles, chapters, attachments, and metadata where supported.
 - Cancel an encode while keeping completed outputs and original files.
+- Use setup and encoding windows that follow Windows' light/dark app preference and high-contrast settings.
 - Install for the current user without administrator rights.
 
 ## Requirements
 
-- A Windows desktop with Windows PowerShell 5.1 or PowerShell 7. The launcher prefers PowerShell 7 when available on `PATH`.
-- FFmpeg with `libsvtav1` support for CPU and Small modes, or `av1_nvenc` support for NVIDIA mode. The installer can download portable tools for x64 or ARM64 Windows.
-- FFprobe for duration estimates and detection of existing AV1 video. It is included in the optional portable download.
+- A Windows desktop. The double-click setup launchers use built-in Windows PowerShell 5.1 and Windows Script Host. Encoding prefers PowerShell 7 when available on `PATH`, with Windows PowerShell 5.1 as the fallback.
+- A recent FFmpeg build with `libsvtav1` support for CPU and Small modes, or `av1_nvenc` support for NVIDIA mode. The installer can download portable tools for x64 or ARM64 Windows.
+- FFprobe is recommended for duration estimates and detection of existing AV1 video. The optional portable download includes both FFmpeg and FFprobe.
 - For NVIDIA mode, a GPU and driver that support **AV1 encoding**.
 
 FFmpeg binaries are downloaded separately and are not included in this repository. Standard Windows desktop installations already include the .NET Framework compiler used to build the small launcher; no separate SDK is needed.
@@ -27,17 +28,25 @@ FFmpeg binaries are downloaded separately and are not included in this repositor
 ## Installation
 
 1. Download this repository using **Code → Download ZIP** and extract it, or clone it with Git.
-2. Keep the extracted project folder somewhere permanent.
+2. Keep the entire extracted project folder somewhere permanent that your Windows account can write to.
 3. Double-click **`Install-SendTo.vbs`** to open the setup window without a console flash.
-4. Review the project folder and choose **Install**. Leave **Download or update portable FFmpeg** selected to get the tools, or clear it if you provide your own in `bin` or on `PATH`.
+4. Review the project folder and FFmpeg option, then choose **Install**. Leave **Download or update portable FFmpeg** selected to install or update the tools when needed, or clear it if you provide your own in `bin` or on `PATH`.
 
-The installer adds three shortcuts to your Windows **Send to** menu. They point to the project folder, so re-run the installer if you move it.
+Setup uses the project folder in place and adds three shortcuts to your Windows **Send to** menu. Keep its `src`, `resources`, and `bin` folders together, and re-run the installer if you move the project.
 
-The setup window follows Windows' light/dark app preference and high-contrast settings, just like the encoding window. It shows the current setup stage and keeps diagnostics under **Details**. Warnings and failures open Details automatically and offer **Try again**. Once setup starts, let it finish before closing the window.
+The window shows the current setup stage and keeps diagnostics under **Details**. Warnings and failures open Details automatically and offer **Try again**. If FFmpeg setup fails, the shortcuts can still be installed; working tools must be available before you can encode. Once setup starts, let it finish before closing the window.
 
-To update, replace the project files or pull the latest changes, then run `Install-SendTo.vbs` again. This rebuilds the launcher, refreshes the shortcuts and icons, and checks for portable FFmpeg updates when the download option is selected. Encoding itself does not check for or download updates.
+### Updates
 
-`Install-SendTo.cmd` also opens the setup window, though Windows may briefly show a console for the batch file. If Windows Script Host is unavailable, run `Install-SendTo.cmd --console` from a terminal to use the original console installer.
+To update, replace the project files or pull the latest changes, then open `Install-SendTo.vbs` and choose **Install** again. This rebuilds the launcher, refreshes the shortcuts and icons, and checks for portable FFmpeg updates when the download option is selected. Encoding itself does not check for or download updates.
+
+### Setup alternatives
+
+Double-clicking `Install-SendTo.cmd` opens the same setup window, though Windows may briefly show a console for the batch file. If Windows Script Host is unavailable, open a terminal in the project folder and run the console installer:
+
+```powershell
+.\Install-SendTo.cmd --console
+```
 
 ## Usage
 
@@ -47,13 +56,13 @@ To update, replace the project files or pull the latest changes, then run `Insta
 
 On Windows 11, you may need **Show more options → Send to**.
 
-Encoding starts automatically. The window shows the current file, its position in the batch, progress, and timing estimates. Files are processed one at a time. Hover over the remaining-time estimate for a precise timestamp.
+Encoding starts automatically. The window shows the current file, its position in the batch, progress, and timing estimates. Files are processed one at a time. Hover over the remaining time to see the estimate in hours, minutes, and seconds.
 
-The window follows Windows' light/dark app preference and updates when you change it, including after encoding finishes. Buttons use consistent rounded styling, with an outlined Cancel action while running and a blue Close action afterward. Windows high-contrast colors are respected.
+The window updates when you change Windows' light/dark app preference or high-contrast settings, including after encoding finishes.
 
 Use **Cancel** to stop the current encode and the rest of the batch. Incomplete output is removed; completed files remain. When finished, review the size comparisons or choose **Open output folder**. **Details** opens automatically for errors and can be expanded for other diagnostic information.
 
-When encoding finishes, progress and timing fields are replaced by a completion heading and time taken. Result cards show each file's size comparison and output path; batches also show counts and total savings above the cards.
+When encoding finishes, progress and timing fields are replaced by a completion heading and time taken. Completed-file cards show the size comparison and output path; skipped and failed files show their status and explanation. Batches also show counts and total savings above the cards.
 
 For longer result lists, press **Tab** to focus the results area, then use the **Up/Down** or **Page Up/Page Down** keys to scroll. Result cards remain non-selectable.
 
@@ -102,8 +111,9 @@ The console interface uses the same encoding engine as the window. See the [enco
 
 | Problem | What to check |
 | --- | --- |
+| The setup window does not open | Extract the entire project before running setup. Try `Install-SendTo.cmd`; if Windows Script Host is unavailable, run `.\Install-SendTo.cmd --console` from the project folder. |
 | Send to entries are missing or still use an older window/icon | Re-run `Install-SendTo.vbs`. On Windows 11, check **Show more options**. |
-| FFmpeg is missing or the download fails | Re-run the installer with GitHub access, or place `ffmpeg.exe` and `ffprobe.exe` in `bin`. Local tools take priority over `PATH`. |
+| FFmpeg is missing or the download fails | Review setup's **Details**, then retry with GitHub access, or place `ffmpeg.exe` and `ffprobe.exe` in `bin`. Tools in `bin` take priority over tools on `PATH`. |
 | NVIDIA encoding fails | Check that both your FFmpeg build and GPU/driver support AV1 encoding. An encoder listed by FFmpeg does not confirm hardware support. |
 | A video is skipped as already AV1 | Use Small mode to allow re-encoding. |
 | No percentage or remaining time is shown | FFprobe could not determine the duration. Processed and elapsed times remain available. |
@@ -119,7 +129,11 @@ If you report an issue, include the chosen mode, the error shown in Details, and
 
 Double-click **`Uninstall-SendTo.vbs`**, review what will be removed, and choose **Uninstall**. It leaves the project folder, portable tools, and your videos in place. You can delete the project folder afterward if you no longer need it.
 
-`Uninstall-SendTo.cmd` opens the same window. Use `Uninstall-SendTo.cmd --console` from a terminal for console removal without Windows Script Host.
+`Uninstall-SendTo.cmd` opens the same window. For console removal without Windows Script Host, run this from a terminal in the project folder:
+
+```powershell
+.\Uninstall-SendTo.cmd --console
+```
 
 ## Development
 
