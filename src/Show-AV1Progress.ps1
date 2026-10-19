@@ -230,20 +230,20 @@ try {
             <TextBlock Name="TimeLabel" Style="{StaticResource OptionalText}" Margin="0,8,0,0"
                        Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
         </StackPanel>
-        <ListBox Foreground="{DynamicResource TextBrush}" Name="Results" Grid.Row="5" BorderThickness="0" Background="Transparent" MaxHeight="220" Margin="0,16,0,0"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-            <ListBox.Style>
-                <Style TargetType="ListBox"><Style.Triggers>
+        <ItemsControl Foreground="{DynamicResource TextBrush}" Name="Results" Grid.Row="5" BorderThickness="0" Background="Transparent" MaxHeight="220" Margin="0,16,0,0">
+            <ItemsControl.Style>
+                <Style TargetType="ItemsControl"><Style.Triggers>
                     <Trigger Property="HasItems" Value="False"><Setter Property="Visibility" Value="Collapsed"/></Trigger>
                 </Style.Triggers></Style>
-            </ListBox.Style>
-            <ListBox.ItemContainerStyle>
-                <Style TargetType="ListBoxItem">
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                    <Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0"/>
-                </Style>
-            </ListBox.ItemContainerStyle>
-            <ListBox.ItemTemplate>
+            </ItemsControl.Style>
+            <ItemsControl.Template>
+                <ControlTemplate TargetType="ItemsControl">
+                    <ScrollViewer Name="ResultsScroll" Focusable="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsPresenter/>
+                    </ScrollViewer>
+                </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,8">
                         <Grid>
@@ -267,8 +267,8 @@ try {
                         </Grid>
                     </Border>
                 </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
         <Expander Name="DetailsExpander" Header="Details" Grid.Row="6" Margin="0,14,0,0" Foreground="{DynamicResource MutedBrush}">
             <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="110" FontFamily="Consolas" FontSize="11"
                      Foreground="{DynamicResource TextBrush}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
@@ -339,7 +339,10 @@ try {
         param($Data)
         $view = Get-AV1ResultView $Data
         $controls.Results.Items.Add($view) | Out-Null
-        $controls.Results.ScrollIntoView($view)
+        # Update the scroll extent before revealing the newest informational card.
+        $controls.Results.UpdateLayout()
+        $resultsScroll = $controls.Results.Template.FindName('ResultsScroll', $controls.Results)
+        if ($null -ne $resultsScroll) { $resultsScroll.ScrollToEnd() }
         if ($null -ne $state.LastProgress) {
             Add-Detail ('Last progress: ' + $state.LastProgress.Status)
             $state.LastProgress = $null

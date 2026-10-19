@@ -96,6 +96,10 @@ public static class Av1ThemeResourceInspector {
     Assert-True ($window.SizeToContent -eq 'Height') 'The window reserves a fixed height.'
     $results = $window.FindName('Results')
     $results.ApplyTemplate() | Out-Null
+    Assert-True ($results -is [Windows.Controls.ItemsControl] -and $results -isnot [Windows.Controls.Primitives.Selector]) 'Result cards still support selection.'
+    $resultsScroll = $results.Template.FindName('ResultsScroll', $results)
+    Assert-True ($resultsScroll -is [Windows.Controls.ScrollViewer] -and -not $resultsScroll.Focusable -and
+        $resultsScroll.VerticalScrollBarVisibility -eq 'Auto' -and $resultsScroll.HorizontalScrollBarVisibility -eq 'Disabled') 'Informational result cards lost their scrolling behavior.'
     Assert-True ($results.Visibility -eq 'Collapsed') 'The empty results area is visible.'
     $results.Items.Add((Get-AV1ResultView ([PSCustomObject]@{
         Path = 'fixture.mkv'; Status = 'Completed'; Message = ''; InputBytes = 100; OutputBytes = 50; OutputPath = 'fixture_AV1.mkv'
