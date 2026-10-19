@@ -41,12 +41,9 @@ try {
         WindowStartupLocation="CenterScreen" Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True">
     <Window.Resources>
-        <Style x:Key="Caption" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/><Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        </Style>
         <Style x:Key="Metric" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,6,10,0"/><Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,8,8,0"/><Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style x:Key="OptionalText" TargetType="TextBlock">
             <Style.Triggers>
@@ -61,33 +58,6 @@ try {
                 <DataTrigger Binding="{Binding Color}" Value="#B91C1C"><Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/></DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="EncodingProgress" TargetType="ProgressBar">
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ProgressBar">
-                        <Grid Name="PART_Track" ClipToBounds="True">
-                            <Border Background="{DynamicResource TrackBrush}" CornerRadius="4"/>
-                            <Border Name="PART_Indicator" HorizontalAlignment="Left"
-                                    Background="{TemplateBinding Foreground}" CornerRadius="4"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsIndeterminate" Value="True">
-                                <Trigger.EnterActions>
-                                    <BeginStoryboard Name="BusyPulse">
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="PART_Indicator" Storyboard.TargetProperty="Opacity"
-                                                             From="0.25" To="1" Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever"/>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.EnterActions>
-                                <Trigger.ExitActions><StopStoryboard BeginStoryboardName="BusyPulse"/></Trigger.ExitActions>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="24">
@@ -99,47 +69,50 @@ try {
         </Grid.RowDefinitions>
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBlock Name="FileLabel" Text="Preparing your videos..." FontSize="20" FontWeight="SemiBold"
-                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,16,0"/>
-            <Border Grid.Column="1" Background="{DynamicResource BadgeBrush}" CornerRadius="10" Padding="10,5" VerticalAlignment="Center">
+            <DockPanel Margin="0,0,16,0">
+                <ContentControl Name="OutcomeIcon" DockPanel.Dock="Left" Style="{StaticResource CompletionIcon}" Visibility="Collapsed"/>
+                <TextBlock Name="FileLabel" Text="Preparing your videos..." Style="{StaticResource HeadingText}" TextWrapping="NoWrap"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            </DockPanel>
+            <Border Grid.Column="1" Background="{DynamicResource BadgeBrush}" CornerRadius="10" Padding="8,4" VerticalAlignment="Center">
                 <TextBlock Name="ModeLabel" Foreground="{DynamicResource BadgeTextBrush}" FontSize="12" FontWeight="SemiBold"/>
             </Border>
         </Grid>
-        <Grid Grid.Row="1" Margin="0,10,0,0">
+        <Grid Grid.Row="1" Margin="0,8,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBlock Name="BatchLabel" Text="Selected videos" Foreground="{DynamicResource MutedBrush}"/>
-            <Ellipse Name="StatusDot" Grid.Column="1" Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="0,0,7,0"/>
+            <TextBlock Name="BatchLabel" Text="Selected videos" Style="{StaticResource SecondaryText}"/>
+            <Ellipse Name="StatusDot" Grid.Column="1" Width="8" Height="8" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
             <TextBlock Name="StatusLabel" Grid.Column="2" Text="Preparing" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
         </Grid>
         <Grid Name="ProgressPanel" Grid.Row="2" Margin="0,16,0,16">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <ProgressBar Name="Progress" Height="8" Minimum="0" Maximum="100" IsIndeterminate="True"
-                         VerticalAlignment="Center" Style="{StaticResource EncodingProgress}"/>
+            <ProgressBar Name="Progress" Minimum="0" Maximum="100" IsIndeterminate="True"
+                         VerticalAlignment="Center" Style="{StaticResource SharedProgressBar}"/>
             <TextBlock Name="PercentLabel" Grid.Column="1" MinWidth="64" Text="..." FontSize="22" FontWeight="SemiBold"
-                       Foreground="{DynamicResource AccentBrush}" TextAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                       Foreground="{DynamicResource AccentBrush}" TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0"/>
         </Grid>
-        <Border Name="TimingPanel" Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+        <Border Name="TimingPanel" Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="1.3*"/></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="TIME REMAINING" Style="{StaticResource Caption}"/>
+                    <TextBlock Text="TIME REMAINING" Style="{StaticResource CaptionText}"/>
                     <TextBlock Name="RemainingValue" Text="Calculating..." Style="{StaticResource Metric}" Foreground="{DynamicResource AccentBrush}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="ELAPSED" Style="{StaticResource Caption}"/>
+                    <TextBlock Text="ELAPSED" Style="{StaticResource CaptionText}"/>
                     <TextBlock Name="ElapsedValue" Text="00:00:00" Style="{StaticResource Metric}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <TextBlock Text="VIDEO PROCESSED" Style="{StaticResource Caption}"/>
+                    <TextBlock Text="VIDEO PROCESSED" Style="{StaticResource CaptionText}"/>
                     <TextBlock Name="ProcessedValue" Text="&#x2014;" Style="{StaticResource Metric}" FontSize="12"/>
                 </StackPanel>
             </Grid>
         </Border>
         <StackPanel Grid.Row="4">
-            <TextBlock Name="SummaryLabel" Style="{StaticResource OptionalText}" Margin="0,14,0,0"
+            <TextBlock Name="SummaryLabel" Style="{StaticResource OptionalText}" Margin="0,16,0,0"
                        Foreground="{DynamicResource TextBrush}" FontSize="12" TextWrapping="Wrap"/>
             <TextBlock Name="TimeLabel" Style="{StaticResource OptionalText}" Margin="0,8,0,0"
-                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
+                       Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap"/>
         </StackPanel>
         <ItemsControl Foreground="{DynamicResource TextBrush}" Name="Results" Grid.Row="5" BorderThickness="0" Background="Transparent" MaxHeight="220" Margin="0,16,0,0">
             <ItemsControl.Style>
@@ -157,13 +130,13 @@ try {
             </ItemsControl.Template>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,8">
                         <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding Glyph}" Style="{StaticResource ResultColor}" FontFamily="Segoe UI Symbol" FontSize="18"/>
                             <StackPanel Grid.Column="1">
                                 <DockPanel>
-                                    <TextBlock Text="{Binding Status}" DockPanel.Dock="Right" FontSize="11" Margin="12,0,0,0">
+                                    <TextBlock Text="{Binding Status}" DockPanel.Dock="Right" FontSize="11" Margin="16,0,0,0">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock" BasedOn="{StaticResource ResultColor}"><Style.Triggers>
                                                 <DataTrigger Binding="{Binding ShowStatus}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
@@ -173,22 +146,20 @@ try {
                                     <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
                                 <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding PathText}" ToolTip="{Binding PathText}" Foreground="{DynamicResource MutedBrush}" FontSize="11"
-                                           Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding PathText}" ToolTip="{Binding PathText}" Style="{StaticResource SecondaryText}"
+                                           Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Grid.Row="6" Margin="0,14,0,0">
-            <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="110" FontFamily="Consolas" FontSize="11"
-                     Foreground="{DynamicResource TextBrush}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
-                     Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"/>
+        <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Grid.Row="6" Margin="0,16,0,0">
+            <TextBox Name="Details" Style="{StaticResource DetailsLog}" Margin="0,8,0,0"/>
         </Expander>
-        <DockPanel Grid.Row="7" Margin="0,18,0,0" LastChildFill="False">
+        <DockPanel Grid.Row="7" Margin="0,24,0,0" LastChildFill="False">
             <Button Name="ActionButton" DockPanel.Dock="Right" Content="Cancel" Style="{StaticResource CancelButton}"/>
-            <Button Name="FolderButton" DockPanel.Dock="Right" Content="Open output folder" Margin="0,0,10,0" Style="{StaticResource SecondaryButton}" IsEnabled="False"/>
+            <Button Name="FolderButton" DockPanel.Dock="Right" Content="Open output folder" Margin="0,0,8,0" Style="{StaticResource SecondaryButton}" IsEnabled="False"/>
         </DockPanel>
     </Grid>
     </ScrollViewer>
@@ -200,7 +171,7 @@ try {
     finally { $reader.Close() }
     $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'OutcomeIcon', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
             'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
@@ -376,6 +347,8 @@ try {
         $controls.FileLabel.Text = $view.Title
         $controls.FileLabel.ToolTip = $null
         $controls.FileLabel.SetResourceReference([Windows.Controls.Control]::ForegroundProperty, (Get-AV1StatusBrushKey $view.Color))
+        $controls.OutcomeIcon.Tag = Get-AV1StatusBrushKey $view.Color
+        $controls.OutcomeIcon.Visibility = 'Visible'
         $controls.BatchLabel.Text = $view.Subtitle
         $controls.SummaryLabel.Text = $view.BatchSummary
         $controls.TimeLabel.Text = $view.Notice

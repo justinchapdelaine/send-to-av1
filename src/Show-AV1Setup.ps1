@@ -30,41 +30,40 @@ try {
     <Window.Resources/>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="24">
-            <TextBlock Name="Heading" Text="Install Send to AV1" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"/>
-            <TextBlock Name="Description" Margin="0,10,0,0" TextWrapping="Wrap"
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <ContentControl Name="OutcomeIcon" Style="{StaticResource CompletionIcon}" Visibility="Collapsed"/>
+                <TextBlock Name="Heading" Grid.Column="1" Text="Install Send to AV1" Style="{StaticResource HeadingText}"/>
+            </Grid>
+            <TextBlock Name="Description" Margin="0,8,0,0" TextWrapping="Wrap"
                        Text="Add CPU, NVIDIA, and Small encoding to your Send to menu. No administrator rights are needed."/>
-            <TextBlock Name="CompactLocation" Visibility="Collapsed" Margin="0,8,0,0" FontSize="12"
-                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
-            <Border Name="LocationCard" Margin="0,20,0,0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+            <TextBlock Name="CompactLocation" Visibility="Collapsed" Margin="0,8,0,0" Style="{StaticResource SecondaryText}"/>
+            <Border Name="LocationCard" Margin="0,24,0,0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                 <StackPanel>
-                    <TextBlock Text="PROJECT FOLDER" FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
-                    <TextBlock Name="Location" Margin="0,6,0,0" TextWrapping="Wrap"/>
-                    <TextBlock Name="LocationHint" Margin="0,6,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
+                    <TextBlock Text="PROJECT FOLDER" Style="{StaticResource CaptionText}"/>
+                    <TextBlock Name="Location" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Name="LocationHint" Margin="0,8,0,0" Style="{StaticResource SecondaryText}"
                                Text="Keep this folder here. The Send to entries will use its scripts and tools."/>
                 </StackPanel>
             </Border>
-            <StackPanel Name="DownloadOptions" Margin="0,18,0,0">
+            <StackPanel Name="DownloadOptions" Margin="0,16,0,0">
                 <CheckBox Name="DownloadTools" IsChecked="True" Style="{StaticResource ThemedCheckBox}">
                     <TextBlock Text="Download or update portable FFmpeg" TextWrapping="Wrap"/>
                 </CheckBox>
-                <TextBlock Margin="32,6,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
+                <TextBlock Margin="32,8,0,0" Style="{StaticResource SecondaryText}"
                            Text="Uses BtbN's GPL Windows builds and checks for updates. Clear this option if you provide your own FFmpeg and FFprobe."/>
             </StackPanel>
-            <StackPanel Name="ProgressPanel" Visibility="Collapsed" Margin="0,20,0,0">
+            <StackPanel Name="ProgressPanel" Visibility="Collapsed" Margin="0,24,0,0">
                 <TextBlock Name="Phase" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
-                <ProgressBar Name="Progress" Height="8" Margin="0,12,0,0" IsIndeterminate="True"
-                             Foreground="{DynamicResource PrimaryBrush}" Background="{DynamicResource TrackBrush}" BorderThickness="0"/>
+                <ProgressBar Name="Progress" Margin="0,8,0,0" IsIndeterminate="True" Style="{StaticResource SharedProgressBar}"/>
             </StackPanel>
-            <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Visibility="Collapsed" Margin="0,18,0,0">
-                <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="120" FontFamily="Consolas" FontSize="11"
-                         Foreground="{DynamicResource TextBrush}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
-                         Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"/>
+            <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Visibility="Collapsed" Margin="0,16,0,0">
+                <TextBox Name="Details" Style="{StaticResource DetailsLog}" Margin="0,8,0,0"/>
             </Expander>
-            <TextBlock Name="Notice" Visibility="Collapsed" Margin="0,20,0,0" FontSize="12"
-                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
-            <DockPanel Name="ActionsPanel" Margin="0,20,0,0" LastChildFill="False">
+            <TextBlock Name="Notice" Visibility="Collapsed" Margin="0,16,0,0" Style="{StaticResource SecondaryText}"/>
+            <DockPanel Name="ActionsPanel" Margin="0,24,0,0" LastChildFill="False">
                 <Button Name="ActionButton" DockPanel.Dock="Right" Content="Install" Style="{StaticResource PrimaryButton}"/>
-                <Button Name="CloseButton" DockPanel.Dock="Right" Content="Cancel" Margin="0,0,10,0" Style="{StaticResource SecondaryButton}"/>
+                <Button Name="CloseButton" DockPanel.Dock="Right" Content="Cancel" Margin="0,0,8,0" Style="{StaticResource SecondaryButton}"/>
             </DockPanel>
         </StackPanel>
     </ScrollViewer>
@@ -76,7 +75,7 @@ try {
     finally { $reader.Close() }
     $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
-    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
+    foreach ($name in @('Heading', 'OutcomeIcon', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
             'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionsPanel', 'ActionButton', 'CloseButton')) {
         $controls[$name] = $window.FindName($name)
     }
@@ -159,6 +158,8 @@ try {
             }
         }
         $controls.Heading.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $color)
+        $controls.OutcomeIcon.Tag = $color
+        $controls.OutcomeIcon.Visibility = 'Visible'
         if (-not $state.Finished) {
             $controls.DownloadOptions.Visibility = 'Collapsed'
             if (-not $Uninstall) { $controls.DownloadOptions.Visibility = 'Visible' }
@@ -180,6 +181,7 @@ try {
         $controls.DownloadOptions.Visibility = 'Collapsed'
         $controls.LocationCard.Visibility = 'Collapsed'
         $controls.CompactLocation.Visibility = 'Visible'
+        $controls.OutcomeIcon.Visibility = 'Collapsed'
         $controls.Heading.Text = 'Installing Send to AV1'
         if ($Uninstall) { $controls.Heading.Text = 'Removing Send to entries' }
         $controls.Heading.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'TextBrush')

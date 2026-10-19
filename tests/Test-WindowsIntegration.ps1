@@ -89,7 +89,7 @@ public static class Av1ThemeResourceInspector {
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
     Set-AV1WindowTheme -Window $window -Theme Light
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'OutcomeIcon', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
             'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
@@ -130,13 +130,20 @@ public static class Av1ThemeResourceInspector {
     # Drive the actual GUI event handlers against the real WPF controls without
     # launching an encode, so binding/template and error-display failures surface.
     $controls = @{}
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'OutcomeIcon', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
             'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
         $controls[$name] = $window.FindName($name)
     }
     Assert-True ($controls.ActionButton.Style -eq $window.FindResource('CancelButton')) 'The running action did not use the outlined cancel style.'
+    Assert-True ($controls.OutcomeIcon.Visibility -eq 'Collapsed' -and
+        $controls.FileLabel.Style -eq $window.FindResource('HeadingText') -and
+        $controls.Progress.Style -eq $window.FindResource('SharedProgressBar') -and
+        $controls.Details.Style -eq $window.FindResource('DetailsLog')) 'Encoding bypasses shared styling or shows a premature completion icon.'
+    $controls.Details.ApplyTemplate() | Out-Null
+    $logHost = $controls.Details.Template.FindName('PART_ContentHost', $controls.Details)
+    Assert-True ($null -ne $logHost -and $null -ne $logHost.Content) 'The encoding Details log lost its native text host.'
     Assert-True ($controls.FolderButton.Background.Color.ToString() -eq '#FFF1F5F9') 'The disabled folder button did not use its disabled palette.'
     $controls.ActionButton.ApplyTemplate() | Out-Null
     Assert-True ($null -ne $controls.ActionButton.Template.FindName('FocusRing', $controls.ActionButton)) 'The button template lost its keyboard focus indicator.'
@@ -219,6 +226,7 @@ public static class Av1ThemeResourceInspector {
         Assert-True ($controls.ProgressPanel.Visibility -eq 'Collapsed' -and $controls.TimingPanel.Visibility -eq 'Collapsed') 'Finished encoding still shows progress or timing panels.'
         Assert-True ($controls.StatusLabel.Visibility -eq 'Collapsed' -and $controls.StatusDot.Visibility -eq 'Collapsed') 'Finished encoding repeats the phase label.'
         Assert-True ($controls.FileLabel.Text -eq 'Encoding complete' -and $controls.BatchLabel.Text -match '^Finished in ') 'Completion did not replace the filename heading and batch position.'
+        Assert-True ($controls.OutcomeIcon.Visibility -eq 'Visible' -and $controls.OutcomeIcon.Tag -eq 'SuccessBrush') 'Successful encoding lost its outcome icon.'
         Assert-True ($controls.SummaryLabel.Text -eq '' -and $controls.TimeLabel.Text -eq '' -and -not $results.Items[0].ShowStatus) 'Single-file success repeats counts, savings, or status.'
         Assert-True (-not $state.Clock.IsRunning -and $controls.ActionButton.Content -eq 'Close') 'Completion did not stop timing or enable closing.'
         Assert-True ($controls.ActionButton.Style -eq $window.FindResource('PrimaryButton') -and $controls.ActionButton.Background.Color.ToString() -eq '#FF2563EB') 'Close did not use the primary button style.'
@@ -235,12 +243,15 @@ public static class Av1ThemeResourceInspector {
         $state.HasWarnings = $true
         Finish-Window
         Assert-True ($controls.SummaryLabel.Text -match '2 completed.*1 skipped.*0 failed.*saved') 'Batch completion lost its counts or total savings.'
+        Assert-True ($controls.OutcomeIcon.Tag -eq 'WarningBrush') 'Warnings show the wrong completion icon.'
         $state.Summary.Cancelled = $true; $state.CurrentFinished = $false
         Finish-Window
         Assert-True ($controls.FileLabel.Text -eq 'Encoding cancelled' -and $results.Items[$results.Items.Count - 1].Status -eq 'Cancelled') 'Cancellation lost its heading or unfinished-file result.'
+        Assert-True ($controls.OutcomeIcon.Tag -eq 'MutedBrush') 'Cancellation shows a success or error icon.'
         $state.Fatal = $true
         Finish-Window
         Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.FileLabel.Text -eq 'Could not complete encoding') 'Fatal completion hid error details.'
+        Assert-True ($controls.OutcomeIcon.Tag -eq 'ErrorBrush') 'Fatal completion shows the wrong outcome icon.'
         $results.Items.Clear()
     }
     finally { $cancellation.Dispose() }
