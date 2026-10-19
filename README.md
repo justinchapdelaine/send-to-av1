@@ -21,6 +21,8 @@ The installer creates these per-user launchers:
 
 No administrator rights are required. The shortcuts open a WPF progress window using `src\Show-AV1Progress.ps1` in the current project folder, so run `Install-SendTo.cmd` again if you move the folder. Re-running the installer upgrades existing `.cmd` launchers to shortcuts and removes the old entries. Encoding starts automatically with the mode chosen in the Send to menu.
 
+The installer also builds `bin\SendToAV1.Launcher.exe` from the included C# source using Windows' .NET Framework compiler. The shortcuts use this small Windows GUI executable to start PowerShell without creating a console window. No separate SDK download is needed on a standard Windows desktop installation. Run the installer again to upgrade older shortcuts that pointed directly to PowerShell.
+
 ## What it does
 
 Send to AV1 will:
@@ -160,7 +162,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -
 
 ## Encoding progress and diagnostics
 
-The Send to entries launch a Windows WPF window with the PowerShell console hidden. The window shows the mode, filename and batch position, a progress bar and percentage, processed video time, elapsed time, and estimated time remaining. A background worker performs the encoding so the window remains responsive. Manual console use shows the corresponding text progress bar.
+The Send to entries use a windowless launcher to open the Windows WPF window without a console flash. The window shows the mode, filename and batch position, a progress bar and percentage, processed video time, elapsed time, and estimated time remaining. A background worker performs the encoding so the window remains responsive. Manual console use shows the corresponding text progress bar.
 
 FFprobe supplies the total duration and FFmpeg supplies structured progress timestamps. The estimate changes with encoding speed; completion is reported only after FFmpeg succeeds and the output file is finalized.
 
@@ -168,7 +170,7 @@ Use **Cancel** to stop the current encode and the remaining batch. The worker st
 
 Cancellation also stops FFprobe and capability checks during video inspection. Each inspection process has a 30-second timeout. A timed-out codec probe skips that file with a warning; a timed-out duration probe continues without a duration estimate. Timeouts on required capability checks are reported as failures.
 
-The results list shows completed, skipped, and failed files, including final output paths and size comparisons for completed files. **Open output folder** opens the folder of the most recently completed output. Expand **Details** for warnings and failure information. The window stays open when the batch finishes so the results can be reviewed.
+The window starts compact, with the results list hidden until there is a completed, skipped, failed, or cancelled file to report. It grows to show results and expanded details, with scrolling for longer batches and smaller screens. Results include final output paths and size comparisons for completed files. **Open output folder** opens the folder of the most recently completed output. Expand **Details** for warnings and failure information. The window stays open when the batch finishes so the results can be reviewed.
 
 If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.
 
@@ -186,7 +188,7 @@ To open the progress window manually, including with retained diagnostics:
 powershell.exe -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File .\src\Show-AV1Progress.ps1 -Small -KeepLog "C:\Path\Recording.mkv"
 ```
 
-The WPF window requires Windows and STA mode. The installer prefers PowerShell 7 when installed and otherwise uses Windows PowerShell 5.1. No separate GUI runtime installation is required on a standard Windows desktop installation.
+The WPF window requires Windows and STA mode. The launcher looks for PowerShell 7 on PATH at startup and falls back to the built-in Windows PowerShell 5.1 if it is unavailable or cannot be started. No separate GUI runtime installation is required on a standard Windows desktop installation.
 
 ## Safety behavior
 
@@ -269,14 +271,20 @@ Check inspection cancellation and timeouts, including termination of stalled chi
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Inspection.ps1
 ```
 
-On Windows, validate the actual WPF layout and shortcut installation, upgrade, reinstallation, and removal. This test uses a temporary destination and does not alter the user's Send to entries. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
+Verify the C# launcher's process options, mode selection, and native argument handling without opening a window:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Launcher.ps1
+```
+
+On Windows, validate the actual WPF layout, automatic results visibility, and shortcut installation, upgrade, reinstallation, and removal. The test also builds the real launcher, checks its GUI executable type, and runs it with a recording script to verify all three modes, selected file paths, and the absence of a console in the PowerShell child. This test uses a temporary destination and does not alter the user's Send to entries or installed launcher. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
 
 ```powershell
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
 pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
 ```
 
-Before release, verify on an interactive Windows desktop that all three Send to entries open the window with the console hidden; multi-file selections (including spaces and Unicode paths) arrive intact; progress remains responsive; warnings and errors are visible; Cancel and closing an active window clean up; and completed results and output-folder navigation work. Verify NVIDIA encoding on supported hardware. The Windows integration test does not automate these Explorer and interactive window behaviors.
+Before release, verify on an interactive Windows desktop that all three Send to entries open a compact window without a console flash; multi-file selections (including spaces and Unicode paths) arrive intact; progress remains responsive; the results area appears when needed; warnings and errors are visible; Cancel and closing an active window clean up; and completed results and output-folder navigation work. Verify NVIDIA encoding on supported hardware. The Windows integration test does not automate these Explorer and interactive window behaviors.
 
 ## Known limitations
 

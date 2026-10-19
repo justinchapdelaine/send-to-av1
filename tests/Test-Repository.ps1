@@ -33,7 +33,7 @@ Assert-True (Test-Path -LiteralPath $optimizerPath -PathType Leaf) 'Missing src\
 Assert-True (Test-Path -LiteralPath $downloaderPath -PathType Leaf) 'Missing src\Download-FFmpeg.ps1.'
 Assert-True (Test-Path -LiteralPath $installerPath -PathType Leaf) 'Missing Install-SendTo.cmd.'
 Assert-True (Test-Path -LiteralPath $binReadmePath -PathType Leaf) 'Missing bin\README.md.'
-foreach ($name in @('AV1.Core.psm1', 'AV1.Worker.psm1', 'Show-AV1Progress.ps1', 'Install-SendTo.ps1')) {
+foreach ($name in @('AV1.Core.psm1', 'AV1.Worker.psm1', 'Show-AV1Progress.ps1', 'Install-SendTo.ps1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
     Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot ('src/' + $name)) -PathType Leaf) ('Missing src/' + $name)
 }
 

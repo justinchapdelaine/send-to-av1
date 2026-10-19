@@ -7,6 +7,9 @@ bin/ffmpeg*.7z
 bin/ffmpeg*.tar.*
 bin/ffmpeg*/
 
+# Locally built windowless launcher
+bin/SendToAV1.Launcher.exe
+
 # Temporary encode outputs
 *.tmp.*
 test-output/

@@ -7,7 +7,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 [CmdletBinding()]
 param(
     [switch]$Uninstall,
-    [string]$SendToDirectory = [Environment]::GetFolderPath('SendTo')
+    [string]$SendToDirectory = [Environment]::GetFolderPath('SendTo'),
+    [string]$LauncherPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin/SendToAV1.Launcher.exe')
 )
 
 Set-StrictMode -Version 2.0
@@ -19,9 +20,9 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
 $sendTo = $SendToDirectory
 if ([string]::IsNullOrWhiteSpace($sendTo)) { throw 'The current user has no Send to folder.' }
 $entries = @(
-    @{ Name = 'Send to AV1'; Arguments = '' },
-    @{ Name = 'Send to AV1 - NVIDIA'; Arguments = ' -Encoder nvenc' },
-    @{ Name = 'Send to AV1 - Small'; Arguments = ' -Small' }
+    @{ Name = 'Send to AV1'; Mode = 'cpu' },
+    @{ Name = 'Send to AV1 - NVIDIA'; Mode = 'nvidia' },
+    @{ Name = 'Send to AV1 - Small'; Mode = 'small' }
 )
 if ($Uninstall) {
     foreach ($entry in $entries) {
@@ -38,24 +39,26 @@ if ($Uninstall) {
 }
 
 $guiPath = Join-Path $PSScriptRoot 'Show-AV1Progress.ps1'
-foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1')) {
+foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $name) -PathType Leaf)) {
         throw ('Missing required file: {0}' -f $name)
     }
 }
 New-Item -ItemType Directory -Path $sendTo -Force | Out-Null
-$shellPath = (Get-Process -Id $PID).Path
+$LauncherPath = [IO.Path]::GetFullPath($LauncherPath)
+& (Join-Path $PSScriptRoot 'Build-Launcher.ps1') -OutputPath $LauncherPath
+$icon = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell/v1.0/powershell.exe'
 $shell = New-Object -ComObject WScript.Shell
 try {
     foreach ($entry in $entries) {
         $shortcut = $shell.CreateShortcut((Join-Path $sendTo ($entry.Name + '.lnk')))
         try {
-            $shortcut.TargetPath = $shellPath
-            # Explorer appends selected file paths directly, without a cmd.exe hop.
-            $shortcut.Arguments = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"{1}' -f $guiPath, $entry.Arguments
+            $shortcut.TargetPath = $LauncherPath
+            # Explorer appends selected files; the GUI executable creates no console.
+            $shortcut.Arguments = '--gui "{0}" --mode {1}' -f $guiPath, $entry.Mode
             $shortcut.WorkingDirectory = Split-Path -Parent $PSScriptRoot
             $shortcut.Description = 'Convert selected videos to AV1 and show progress.'
-            $shortcut.IconLocation = $shellPath + ',0'
+            $shortcut.IconLocation = $icon + ',0'
             $shortcut.Save()
         }
         finally { [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null }

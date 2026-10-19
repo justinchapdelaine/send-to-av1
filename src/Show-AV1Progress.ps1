@@ -33,13 +33,14 @@ try {
     [xml]$layout = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Send to AV1" Width="640" Height="510" MinWidth="500" MinHeight="450"
+        Title="Send to AV1" Width="640" MinWidth="500" SizeToContent="Height"
         WindowStartupLocation="CenterScreen" Background="#F5F6F8" FontFamily="Segoe UI" FontSize="13">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
@@ -53,9 +54,18 @@ try {
             <ProgressBar Name="Progress" Height="14" Minimum="0" Maximum="100" IsIndeterminate="True"/>
             <TextBlock Name="PercentLabel" Grid.Column="1" Width="50" TextAlignment="Right" VerticalAlignment="Center"/>
         </Grid>
-        <TextBlock Name="TimeLabel" Grid.Row="4" Margin="0,10,0,16" Foreground="#536174" TextWrapping="Wrap"/>
-        <ListBox Name="Results" Grid.Row="5" BorderThickness="1" BorderBrush="#D4D9E0"
+        <TextBlock Name="TimeLabel" Grid.Row="4" Margin="0,10,0,0" Foreground="#536174" TextWrapping="Wrap"/>
+        <ListBox Name="Results" Grid.Row="5" BorderThickness="1" BorderBrush="#D4D9E0" MaxHeight="180" Margin="0,12,0,0"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.Style>
+                <Style TargetType="ListBox">
+                    <Style.Triggers>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ListBox.Style>
             <ListBox.ItemTemplate>
                 <DataTemplate><TextBlock Text="{Binding}" Margin="6" TextWrapping="Wrap"/></DataTemplate>
             </ListBox.ItemTemplate>
@@ -71,11 +81,13 @@ try {
             <TextBlock Name="SummaryLabel" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"/>
         </DockPanel>
     </Grid>
+    </ScrollViewer>
 </Window>
 '@
     $reader = New-Object Xml.XmlNodeReader $layout
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
+    $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
     foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel')) {
