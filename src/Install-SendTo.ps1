@@ -43,10 +43,13 @@ if ([string]::IsNullOrWhiteSpace($LauncherPath)) {
     $LauncherPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'bin/SendToAV1.Launcher.exe'
 }
 $guiPath = Join-Path $PSScriptRoot 'Show-AV1Progress.ps1'
-foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 'AV1.ViewModel.psm1', 'AV1.Theme.psm1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
+foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 'AV1.ViewModel.psm1', 'AV1.Theme.psm1', 'AV1.Xaml.psm1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $name) -PathType Leaf)) {
         throw ('Missing required file: {0}' -f $name)
     }
+}
+if (-not (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'resources/AV1.Controls.xaml') -PathType Leaf)) {
+    throw 'Missing required file: resources/AV1.Controls.xaml'
 }
 New-Item -ItemType Directory -Path $sendTo -Force | Out-Null
 $LauncherPath = [IO.Path]::GetFullPath($LauncherPath)

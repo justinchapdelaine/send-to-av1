@@ -2,6 +2,12 @@
 @echo off
 setlocal
 
+if /i "%~1"=="--console" goto console
+wscript.exe //nologo "%~dp0Install-SendTo.vbs"
+exit /b %errorlevel%
+
+:console
+
 set "SCRIPT_DIR=%~dp0"
 set "OPTIMIZER=%SCRIPT_DIR%src\Optimize-AV1.ps1"
 set "DOWNLOADER=%SCRIPT_DIR%src\Download-FFmpeg.ps1"

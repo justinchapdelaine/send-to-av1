@@ -28,12 +28,16 @@ FFmpeg binaries are downloaded separately and are not included in this repositor
 
 1. Download this repository using **Code → Download ZIP** and extract it, or clone it with Git.
 2. Keep the extracted project folder somewhere permanent.
-3. Double-click **`Install-SendTo.cmd`**.
-4. Approve the portable FFmpeg download if you need it. You can also provide your own tools in `bin` or on `PATH`.
+3. Double-click **`Install-SendTo.vbs`** to open the setup window without a console flash.
+4. Review the project folder and choose **Install**. Leave **Download or update portable FFmpeg** selected to get the tools, or clear it if you provide your own in `bin` or on `PATH`.
 
 The installer adds three shortcuts to your Windows **Send to** menu. They point to the project folder, so re-run the installer if you move it.
 
-To update, replace the project files or pull the latest changes, then run `Install-SendTo.cmd` again. This rebuilds the launcher, refreshes the shortcuts and icons, and checks for portable FFmpeg updates. Encoding itself does not check for or download updates.
+The setup window follows Windows' light/dark app preference and high-contrast settings, just like the encoding window. It shows the current setup stage and keeps diagnostics under **Details**. Warnings and failures open Details automatically and offer **Try again**. Once setup starts, let it finish before closing the window.
+
+To update, replace the project files or pull the latest changes, then run `Install-SendTo.vbs` again. This rebuilds the launcher, refreshes the shortcuts and icons, and checks for portable FFmpeg updates when the download option is selected. Encoding itself does not check for or download updates.
+
+`Install-SendTo.cmd` also opens the setup window, though Windows may briefly show a console for the batch file. If Windows Script Host is unavailable, run `Install-SendTo.cmd --console` from a terminal to use the original console installer.
 
 ## Usage
 
@@ -96,7 +100,7 @@ The console interface uses the same encoding engine as the window. See the [enco
 
 | Problem | What to check |
 | --- | --- |
-| Send to entries are missing or still use an older window/icon | Re-run `Install-SendTo.cmd`. On Windows 11, check **Show more options**. |
+| Send to entries are missing or still use an older window/icon | Re-run `Install-SendTo.vbs`. On Windows 11, check **Show more options**. |
 | FFmpeg is missing or the download fails | Re-run the installer with GitHub access, or place `ffmpeg.exe` and `ffprobe.exe` in `bin`. Local tools take priority over `PATH`. |
 | NVIDIA encoding fails | Check that both your FFmpeg build and GPU/driver support AV1 encoding. An encoder listed by FFmpeg does not confirm hardware support. |
 | A video is skipped as already AV1 | Use Small mode to allow re-encoding. |
@@ -111,7 +115,9 @@ If you report an issue, include the chosen mode, the error shown in Details, and
 
 ## Uninstall
 
-Double-click **`Uninstall-SendTo.cmd`** to remove the Send to entries. It leaves the project folder, portable tools, and your videos in place. You can delete the project folder afterward if you no longer need it.
+Double-click **`Uninstall-SendTo.vbs`**, review what will be removed, and choose **Uninstall**. It leaves the project folder, portable tools, and your videos in place. You can delete the project folder afterward if you no longer need it.
+
+`Uninstall-SendTo.cmd` opens the same window. Use `Uninstall-SendTo.cmd --console` from a terminal for console removal without Windows Script Host.
 
 ## Development
 

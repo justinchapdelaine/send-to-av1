@@ -190,30 +190,36 @@ try {
     }
     Import-Module (Join-Path $repoRoot 'src/AV1.Theme.psm1') -Force
     $script:palette = Get-AV1ThemePalette Light
-    $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')
-    $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
-    Assert-True $match.Success 'No GUI XAML found.'
-    [xml]$xaml = $match.Groups[1].Value
-    $script:named = @{}
-    foreach ($node in $xaml.SelectNodes('//*[@Name]')) { $script:named[$node.GetAttribute('Name')] = Get-WpfType $node.LocalName }
-    $script:styles = @{}
-    $namespaces = [Xml.XmlNamespaceManager]::new($xaml.NameTable)
-    $namespaces.AddNamespace('x', 'http://schemas.microsoft.com/winfx/2006/xaml')
-    foreach ($node in $xaml.SelectNodes('//*[@x:Key]', $namespaces)) {
-        $script:styles[$node.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml')] = $node
-    }
-    Test-XamlNode $xaml.DocumentElement $null
-    foreach ($path in @('src/AV1.Theme.psm1', 'src/Show-AV1Progress.ps1')) {
-        $tokens = $null; $errors = $null
-        $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repoRoot $path), [ref]$tokens, [ref]$errors)
-        Assert-True ($errors.Count -eq 0) ('PowerShell parse failure: ' + $path)
-        foreach ($node in $ast.FindAll({ param($n) $n -is [Management.Automation.Language.MemberExpressionAst] }, $true)) {
-            $type = Get-AstWpfType $node.Expression
-            if ($null -eq $type -or -not $type.FullName.StartsWith('System.Windows.')) { continue }
-            if ($node.Member.Value -eq 'new') {
-                Assert-True (@($type.GetConstructors() | Where-Object { $_.GetParameters().Count -eq $node.Arguments.Count }).Count -gt 0) ('No matching WPF constructor: ' + $type.FullName)
+    Import-Module (Join-Path $repoRoot 'src/AV1.Xaml.psm1') -Force
+    foreach ($guiPath in @('src/Show-AV1Progress.ps1', 'src/Show-AV1Setup.ps1')) {
+        $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $guiPath)
+        $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
+        Assert-True $match.Success 'No GUI XAML found.'
+        [xml]$xaml = $match.Groups[1].Value
+        Add-AV1WindowResources -Layout $xaml
+        $script:named = @{}
+        foreach ($node in $xaml.SelectNodes('//*[@Name]')) { $script:named[$node.GetAttribute('Name')] = Get-WpfType $node.LocalName }
+        $script:styles = @{}
+        $namespaces = [Xml.XmlNamespaceManager]::new($xaml.NameTable)
+        $namespaces.AddNamespace('x', 'http://schemas.microsoft.com/winfx/2006/xaml')
+        foreach ($node in $xaml.SelectNodes('//*[@x:Key]', $namespaces)) {
+            $script:styles[$node.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml')] = $node
+        }
+        Test-XamlNode $xaml.DocumentElement $null
+        foreach ($path in @('src/AV1.Theme.psm1', $guiPath)) {
+            $tokens = $null; $errors = $null
+            $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repoRoot $path), [ref]$tokens, [ref]$errors)
+            Assert-True ($errors.Count -eq 0) ('PowerShell parse failure: ' + $path)
+            foreach ($node in $ast.FindAll({ param($n) $n -is [Management.Automation.Language.MemberExpressionAst] }, $true)) {
+                $type = Get-AstWpfType $node.Expression
+                if ($null -eq $type -or -not $type.FullName.StartsWith('System.Windows.')) { continue }
+                if ($node.Member.Value -eq 'new') {
+                    $argumentCount = 0
+                    if ($null -ne $node.Arguments) { $argumentCount = $node.Arguments.Count }
+                    Assert-True (@($type.GetConstructors() | Where-Object { $_.GetParameters().Count -eq $argumentCount }).Count -gt 0) ('No matching WPF constructor: ' + $type.FullName)
+                }
+                else { Get-WpfMember $type $node.Member.Value | Out-Null }
             }
-            else { Get-WpfMember $type $node.Member.Value | Out-Null }
         }
     }
     Write-Host ('WPF API and XAML contract checks passed: {0}.' -f $script:checks)

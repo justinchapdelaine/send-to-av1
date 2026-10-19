@@ -83,6 +83,8 @@ public static class Av1ThemeResourceInspector {
     $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
     Assert-True $match.Success 'Could not find the actual progress-window layout.'
     [xml]$layout = $match.Groups[1].Value
+    Import-Module (Join-Path $repoRoot 'src/AV1.Xaml.psm1') -Force
+    Add-AV1WindowResources -Layout $layout
     $reader = New-Object Xml.XmlNodeReader $layout
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }

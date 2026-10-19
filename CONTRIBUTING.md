@@ -16,6 +16,11 @@ Run commands below from the project folder. Use temporary clips for encoding che
 | `src/AV1.Worker.psm1` | Background runspace and event queue |
 | `src/AV1.ViewModel.psm1` | Time estimates and result formatting |
 | `src/AV1.Theme.psm1` | Windows theme detection, palettes, and window color resources |
+| `src/AV1.Xaml.psm1` | Include shared WPF control styles before loading a window |
+| `resources/AV1.Controls.xaml` | Shared button and tooltip styles |
+| `src/Show-AV1Setup.ps1` | Themed installer and uninstaller window |
+| `src/AV1.Setup.psm1` | Setup orchestration, background runspace, and result queue |
+| `Install-SendTo.vbs`, `Uninstall-SendTo.vbs` | Hidden setup-window launchers using built-in Windows PowerShell |
 | `src/SendToAv1Launcher.cs` | Windowless PowerShell launcher |
 | `src/Build-Launcher.ps1` | Build the launcher with the Windows .NET Framework compiler |
 | `src/Install-SendTo.ps1` | Per-user shortcut installation and removal |
@@ -29,6 +34,12 @@ Run the lightweight repository checks without FFmpeg:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Repository.ps1
+```
+
+Exercise the setup background worker without WPF, network access, or changes to the user's Send to menu. These checks use isolated fixture scripts to cover download consent, successful and failed downloads, shortcut failures, removal, and progress forwarding:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Setup.ps1
 ```
 
 Run the output-safety regression checks without FFmpeg. These verify tool discovery with duplicate PATH matches and preserve both results when two processes finalize the same output name:
@@ -79,7 +90,7 @@ Check light/dark palette completeness, status-color mapping, and text contrast w
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiTheme.ps1
 ```
 
-Audit the actual GUI XAML and theme module against WPF's public APIs, including inherited and attached properties, dependency properties, style setters, template bindings, palette references, enums, and events:
+Audit both windows' actual XAML, shared styles, and theme module against WPF's public APIs, including inherited and attached properties, dependency properties, style setters, template bindings, palette references, enums, and events:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-WpfApi.ps1
@@ -99,6 +110,15 @@ On Windows, validate the actual WPF layout, automatic results visibility, live p
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
 pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
 ```
+
+On Windows, check the actual setup layout, theme changes, success/warning/error states, and both VBS launchers. The launchers run a recording script in an isolated fixture folder, including spaces, Unicode, and literal percent signs in the path; no downloads or real installation/removal occurs:
+
+```powershell
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsSetup.ps1
+pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsSetup.ps1
+```
+
+Also verify interactive setup from each `.vbs` and `.cmd` entry point, with and without portable FFmpeg selected; current tools, an available update, and a failed download; retry and closing behavior; the uninstall confirmation and preservation of project files; and the `--console` fallbacks. Confirm progress remains responsive and no native tool window flashes. VBS launchers require Windows Script Host; the console fallbacks do not.
 
 Before release, verify on an interactive Windows desktop that all three Send to entries open a compact window without a console flash; multi-file selections (including spaces and Unicode paths) arrive intact; progress remains responsive; the results area appears when needed; warnings and errors are visible; Cancel and closing an active window clean up; and completed results and output-folder navigation work. Verify NVIDIA encoding on supported hardware. The Windows integration test does not automate these Explorer and interactive window behaviors.
 

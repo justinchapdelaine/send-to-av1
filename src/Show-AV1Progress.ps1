@@ -32,6 +32,7 @@ try {
     Import-Module (Join-Path $PSScriptRoot 'AV1.Worker.psm1') -Force -ErrorAction Stop
     Import-Module (Join-Path $PSScriptRoot 'AV1.ViewModel.psm1') -Force -ErrorAction Stop
     Import-Module (Join-Path $PSScriptRoot 'AV1.Theme.psm1') -Force -ErrorAction Stop
+    Import-Module (Join-Path $PSScriptRoot 'AV1.Xaml.psm1') -Force -ErrorAction Stop
 
     [xml]$layout = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -58,96 +59,6 @@ try {
                 <DataTrigger Binding="{Binding Color}" Value="#15803D"><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/></DataTrigger>
                 <DataTrigger Binding="{Binding Color}" Value="#B45309"><Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/></DataTrigger>
                 <DataTrigger Binding="{Binding Color}" Value="#B91C1C"><Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/></DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style TargetType="ToolTip">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-        </Style>
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="MinWidth" Value="90"/>
-            <Setter Property="MinHeight" Value="38"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <Border Name="FocusRing" CornerRadius="9" BorderThickness="2" BorderBrush="Transparent"/>
-                            <Border Margin="3" CornerRadius="6" Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-                                <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  RecognizesAccessKey="True" TextElement.Foreground="{TemplateBinding Foreground}"/>
-                            </Border>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="FocusRing" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource HoverTextBrush}"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource PressedBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource HoverTextBrush}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="{DynamicResource DisabledBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
-                    <Setter Property="Cursor" Value="Arrow"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource PrimaryHoverBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHoverBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource PrimaryPressedBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryPressedBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="{DynamicResource DisabledBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="CancelButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource DangerHoverBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource DangerTextBrush}"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource DangerPressedBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource DangerTextBrush}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="{DynamicResource DisabledBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-                </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="EncodingProgress" TargetType="ProgressBar">
@@ -282,6 +193,7 @@ try {
     </ScrollViewer>
 </Window>
 '@
+    Add-AV1WindowResources -Layout $layout
     $reader = New-Object Xml.XmlNodeReader $layout
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
