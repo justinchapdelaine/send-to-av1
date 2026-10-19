@@ -44,6 +44,34 @@ try {
     Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
     Import-Module (Join-Path $repoRoot 'src/AV1.ViewModel.psm1') -Force
     Import-Module (Join-Path $repoRoot 'src/AV1.Theme.psm1') -Force
+    # Read resource values inside CLR code: PowerShell's property adapter can
+    # unwrap PSObject values and conceal the type that WPF actually receives.
+    if (-not ('Av1ThemeResourceInspector' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Collections;
+public static class Av1ThemeResourceInspector {
+    public static bool HasType(IDictionary resources, object key, Type expectedType) {
+        return expectedType.IsInstanceOfType(resources[key]);
+    }
+}
+'@
+    }
+    $resourceProbe = [PSCustomObject]@{
+        Resources = [Windows.ResourceDictionary]::new(); IsSourceInitialized = $false
+    }
+    foreach ($theme in @('Light', 'Dark', 'HighContrast')) {
+        Set-AV1WindowTheme -Window $resourceProbe -Theme $theme
+        foreach ($key in (Get-AV1ThemePalette $theme).Keys) {
+            Assert-True ([Av1ThemeResourceInspector]::HasType($resourceProbe.Resources, $key, [Windows.Media.Brush])) ('WPF received a wrapped or invalid resource: ' + $theme + '/' + $key)
+        }
+        foreach ($key in @([Windows.SystemColors]::ControlBrushKey, [Windows.SystemColors]::ControlTextBrushKey,
+                [Windows.SystemColors]::WindowBrushKey, [Windows.SystemColors]::WindowTextBrushKey,
+                [Windows.SystemColors]::HighlightBrushKey, [Windows.SystemColors]::HighlightTextBrushKey,
+                [Windows.SystemColors]::GrayTextBrushKey)) {
+            Assert-True ([Av1ThemeResourceInspector]::HasType($resourceProbe.Resources, $key, [Windows.Media.Brush])) 'A system-color resource alias retained a PowerShell wrapper.'
+        }
+    }
     $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')
     $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
     Assert-True $match.Success 'Could not find the actual progress-window layout.'

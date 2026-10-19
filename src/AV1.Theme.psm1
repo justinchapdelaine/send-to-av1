@@ -72,7 +72,9 @@ function Set-AV1WindowTheme {
 
     $palette = Get-AV1ThemePalette -Theme $Theme
     foreach ($key in $palette.Keys) {
-        $brush = New-Object Windows.Media.SolidColorBrush ([Windows.Media.ColorConverter]::ConvertFromString($palette[$key]))
+        # New-Object can leave a PSObject wrapper in the object-valued resource
+        # dictionary. WPF needs the actual Brush when resolving DynamicResource.
+        $brush = [Windows.Media.SolidColorBrush]::new([Windows.Media.ColorConverter]::ConvertFromString($palette[$key]))
         $brush.Freeze()
         $Window.Resources[$key] = $brush
     }
