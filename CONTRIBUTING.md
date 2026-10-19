@@ -120,6 +120,8 @@ pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsSetup
 
 Also verify interactive setup from each `.vbs` and `.cmd` entry point, with and without portable FFmpeg selected; current tools, an available update, and a failed download; retry and closing behavior; the uninstall confirmation and preservation of project files; and the `--console` fallbacks. Confirm progress remains responsive and no native tool window flashes. VBS launchers require Windows Script Host; the console fallbacks do not.
 
+For both install and uninstall, confirm starting setup replaces the folder card, choices, and buttons with the compact folder path, current step, progress, Details, and a wait message. Success should show the result and a single primary Close action. On warnings or failures, retry and Close must return; only installation should restore the download choice. Retrying must use the current choice and clear the previous attempt's Details. Check the compact layout with long folder paths and large Windows text settings.
+
 Check the download checkbox in light, dark, and high-contrast themes. Its checked and unchecked states must be clear before hovering, with visible Tab focus and Space toggling. Confirm it stays readable while disabled during setup and restores its appearance when setup finishes or fails.
 
 In the installer, uninstaller, and encoding window, check the shared Details header: the chevron points right when collapsed and down when expanded, clicking either the arrow or label toggles the content, and Tab/Space works with a visible focus ring. Confirm hover feedback and theme changes remain readable and collapsed Details reserves no content area.

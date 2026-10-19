@@ -14,6 +14,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('av1 setup & (test) %PATH% ' + [char]0xe9 + ' ' + [Guid]::NewGuid().ToString('N'))
 $originalRecord = $env:SEND_TO_AV1_SETUP_TEST_RECORD
 $window = $null
+$timer = $null
 $script:checks = 0
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -33,13 +34,15 @@ try {
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
     $controls = @{}
-    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'DownloadOptions', 'DownloadTools',
-            'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionButton', 'CloseButton')) {
+    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
+            'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionsPanel', 'ActionButton', 'CloseButton')) {
         $controls[$name] = $window.FindName($name)
         Assert-True ($null -ne $controls[$name]) ('Missing setup control: ' + $name)
     }
     Assert-True ($controls.ProgressPanel.Visibility -eq 'Collapsed' -and $controls.DetailsExpander.Visibility -eq 'Collapsed') 'Idle setup exposes empty progress or details.'
     Assert-True ($controls.DownloadTools.IsChecked -and $controls.ActionButton.IsEnabled) 'The initial installation choices are unavailable.'
+    Assert-True ($controls.LocationCard.Visibility -eq 'Visible' -and $controls.DownloadOptions.Visibility -eq 'Visible' -and
+        $controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.CompactLocation.Visibility -eq 'Collapsed') 'Idle setup lost its folder, choices, or actions.'
     $controls.ActionButton.ApplyTemplate() | Out-Null
     Assert-True ($null -ne $controls.ActionButton.Template.FindName('FocusRing', $controls.ActionButton)) 'Setup does not use the shared button template.'
     $checkBox = $controls.DownloadTools
@@ -108,8 +111,35 @@ try {
         Assert-True ($checkGlyph.Stroke.Color -eq $window.Resources['PrimaryTextBrush'].Color -and
             $checkBox.Foreground.Color -eq $window.Resources['TextBrush'].Color) ('Re-enabling the option did not restore its theme: ' + $theme)
     }
+    # Exercise the real start/retry handlers with a recording worker and an
+    # unsubscribed timer. No downloads or real shortcut operations can run.
+    $script:workerStarts = 0
+    $script:failWorkerStart = $false
+    function Start-AV1SetupWorker {
+        param([hashtable]$Options)
+        $script:workerStarts++
+        $script:lastWorkerOptions = $Options
+        if ($script:failWorkerStart) { throw 'Test worker startup failure' }
+        return [PSCustomObject]@{ Fixture = $true }
+    }
+    $timer = [Windows.Threading.DispatcherTimer]::new()
+    $projectRoot = $repoRoot
+    $controls.CompactLocation.Text = $projectRoot
     $Uninstall = $false
-    $state = @{ Running = $true; Finished = $false; Result = $null }
+    $operation = 'Install'
+    $state = @{ Running = $false; Finished = $false; Result = $null; Worker = $null }
+    $controls.DownloadTools.IsChecked = $false
+    Start-Setup
+    $timer.Stop()
+    Assert-True ($state.Running -and $script:workerStarts -eq 1 -and -not $script:lastWorkerOptions.DownloadTools -and
+        $script:lastWorkerOptions.Operation -eq 'Install') 'Starting setup lost the chosen operation or download option.'
+    Assert-True ($controls.LocationCard.Visibility -eq 'Collapsed' -and $controls.DownloadOptions.Visibility -eq 'Collapsed' -and
+        $controls.CompactLocation.Visibility -eq 'Visible' -and $controls.Description.Visibility -eq 'Collapsed') 'Running setup still shows the full choices or hides its compact folder.'
+    Assert-True ($controls.ActionsPanel.Visibility -eq 'Collapsed' -and $controls.Notice.Visibility -eq 'Visible' -and
+        $controls.ProgressPanel.Visibility -eq 'Visible' -and $controls.Progress.IsIndeterminate -and
+        $controls.DetailsExpander.Visibility -eq 'Visible') 'Running setup lost its progress, Details, or wait message.'
+    Start-Setup
+    Assert-True ($script:workerStarts -eq 1) 'The running guard allowed a second setup worker.'
     Update-SetupWindow ([PSCustomObject]@{ Type = 'Phase'; Message = 'Downloading FFmpeg...' })
     Update-SetupWindow ([PSCustomObject]@{ Type = 'Detail'; Message = 'Download diagnostic' })
     Assert-True ($controls.Phase.Text -eq 'Downloading FFmpeg...' -and $controls.Details.Text -match 'Download diagnostic') 'Setup lost background progress or diagnostics.'
@@ -117,6 +147,15 @@ try {
     Finish-SetupWindow
     Assert-True (-not $state.Running -and -not $state.Finished -and $controls.ActionButton.Content -eq 'Try again') 'A warning cannot be retried.'
     Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.Heading.Foreground.Color -eq $window.Resources['WarningBrush'].Color) 'Setup hid a warning or lost its semantic color.'
+    Assert-True ($controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.Description.Visibility -eq 'Visible' -and
+        $controls.DownloadOptions.Visibility -eq 'Visible' -and $controls.DownloadTools.IsEnabled -and
+        $controls.CloseButton.Visibility -eq 'Visible' -and $controls.Notice.Visibility -eq 'Collapsed') 'A warning did not restore the download choice and closing/retry actions.'
+    $controls.DownloadTools.IsChecked = $true
+    Start-Setup
+    $timer.Stop()
+    Assert-True ($state.Running -and $script:lastWorkerOptions.DownloadTools -and
+        $controls.Details.Text -eq '' -and -not $controls.DetailsExpander.IsExpanded -and
+        $controls.DownloadOptions.Visibility -eq 'Collapsed') 'Retry ignored a changed choice or retained the previous attempt in Details.'
     $state.Result = [PSCustomObject]@{ Status = 'Failed'; Message = 'Test setup failure' }
     Finish-SetupWindow
     Assert-True ($controls.Description.Text -eq 'Test setup failure' -and $controls.Heading.Foreground.Color -eq $window.Resources['ErrorBrush'].Color) 'Setup failure was hidden.'
@@ -124,11 +163,30 @@ try {
     Finish-SetupWindow
     Assert-True ($state.Finished -and $controls.Heading.Text -eq 'Installation complete' -and $controls.ActionButton.Content -eq 'Close') 'Install completion did not enable closing.'
     Assert-True ($controls.ProgressPanel.Visibility -eq 'Collapsed' -and $controls.DownloadOptions.Visibility -eq 'Collapsed') 'Completed setup still shows progress or setup choices.'
+    Assert-True ($controls.LocationCard.Visibility -eq 'Collapsed' -and $controls.CompactLocation.Visibility -eq 'Collapsed' -and
+        $controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.CloseButton.Visibility -eq 'Collapsed' -and
+        $controls.Notice.Visibility -eq 'Collapsed') 'Completed setup did not reduce to its result and primary Close action.'
     Set-AV1WindowTheme -Window $window -Theme Dark
     Assert-True ($controls.Heading.Foreground.Color -eq $window.Resources['SuccessBrush'].Color) 'Changing themes lost the completion color.'
     $Uninstall = $true
+    $operation = 'Uninstall'
+    Start-Setup
+    $timer.Stop()
+    Assert-True ($state.Running -and $script:lastWorkerOptions.Operation -eq 'Uninstall' -and
+        $controls.Heading.Text -eq 'Removing Send to entries' -and $controls.DownloadOptions.Visibility -eq 'Collapsed' -and
+        $controls.ActionsPanel.Visibility -eq 'Collapsed') 'Uninstall did not use the same focused progress layout.'
+    $state.Result = [PSCustomObject]@{ Status = 'Failed'; Message = 'Test uninstall failure' }
     Finish-SetupWindow
-    Assert-True ($controls.Heading.Text -eq 'Uninstall complete') 'Uninstall uses the install completion heading.'
+    Assert-True ($controls.DownloadOptions.Visibility -eq 'Collapsed' -and $controls.ActionsPanel.Visibility -eq 'Visible' -and
+        $controls.CloseButton.Visibility -eq 'Visible' -and $controls.ActionButton.Content -eq 'Try again') 'Failed uninstall exposed download options or lost closing/retry actions.'
+    $script:failWorkerStart = $true
+    Start-Setup
+    Assert-True (-not $state.Running -and $controls.ProgressPanel.Visibility -eq 'Collapsed' -and
+        $controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.Description.Text -eq 'Test worker startup failure') 'A worker startup exception stranded the progress view.'
+    $state.Result = [PSCustomObject]@{ Status = 'Completed'; Message = 'The Send to entries have been removed. Your project folder, portable tools, and videos have been kept.' }
+    Finish-SetupWindow
+    Assert-True ($controls.Heading.Text -eq 'Uninstall complete' -and $controls.ActionButton.Content -eq 'Close' -and
+        $controls.Description.Text -match 'have been kept' -and $controls.CloseButton.Visibility -eq 'Collapsed') 'Uninstall lost its completion message, preservation summary, or primary Close action.'
     $window.Close()
     $window = $null
 
@@ -171,6 +229,7 @@ $path = $env:SEND_TO_AV1_SETUP_TEST_RECORD
     Write-Host ('Windows setup checks passed: {0}.' -f $script:checks)
 }
 finally {
+    if ($null -ne $timer) { $timer.Stop() }
     $env:SEND_TO_AV1_SETUP_TEST_RECORD = $originalRecord
     if ($null -ne $window) { $window.Close() }
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }

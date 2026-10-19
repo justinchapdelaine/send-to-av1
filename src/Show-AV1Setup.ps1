@@ -31,9 +31,11 @@ try {
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="24">
             <TextBlock Name="Heading" Text="Install Send to AV1" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"/>
-            <TextBlock Name="Description" Margin="0,10,0,20" TextWrapping="Wrap"
+            <TextBlock Name="Description" Margin="0,10,0,0" TextWrapping="Wrap"
                        Text="Add CPU, NVIDIA, and Small encoding to your Send to menu. No administrator rights are needed."/>
-            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+            <TextBlock Name="CompactLocation" Visibility="Collapsed" Margin="0,8,0,0" FontSize="12"
+                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
+            <Border Name="LocationCard" Margin="0,20,0,0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
                 <StackPanel>
                     <TextBlock Text="PROJECT FOLDER" FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
                     <TextBlock Name="Location" Margin="0,6,0,0" TextWrapping="Wrap"/>
@@ -49,17 +51,18 @@ try {
                            Text="Uses BtbN's GPL Windows builds and checks for updates. Clear this option if you provide your own FFmpeg and FFprobe."/>
             </StackPanel>
             <StackPanel Name="ProgressPanel" Visibility="Collapsed" Margin="0,20,0,0">
-                <TextBlock Name="Phase" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
-                <ProgressBar Name="Progress" Height="6" Margin="0,10,0,0" IsIndeterminate="True"
+                <TextBlock Name="Phase" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
+                <ProgressBar Name="Progress" Height="8" Margin="0,12,0,0" IsIndeterminate="True"
                              Foreground="{DynamicResource PrimaryBrush}" Background="{DynamicResource TrackBrush}" BorderThickness="0"/>
             </StackPanel>
-            <TextBlock Name="Notice" Visibility="Collapsed" Margin="0,16,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
             <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Visibility="Collapsed" Margin="0,18,0,0">
                 <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="120" FontFamily="Consolas" FontSize="11"
                          Foreground="{DynamicResource TextBrush}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
                          Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"/>
             </Expander>
-            <DockPanel Margin="0,20,0,0" LastChildFill="False">
+            <TextBlock Name="Notice" Visibility="Collapsed" Margin="0,20,0,0" FontSize="12"
+                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
+            <DockPanel Name="ActionsPanel" Margin="0,20,0,0" LastChildFill="False">
                 <Button Name="ActionButton" DockPanel.Dock="Right" Content="Install" Style="{StaticResource PrimaryButton}"/>
                 <Button Name="CloseButton" DockPanel.Dock="Right" Content="Cancel" Margin="0,0,10,0" Style="{StaticResource SecondaryButton}"/>
             </DockPanel>
@@ -73,12 +76,13 @@ try {
     finally { $reader.Close() }
     $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
-    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'DownloadOptions', 'DownloadTools',
-            'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionButton', 'CloseButton')) {
+    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
+            'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionsPanel', 'ActionButton', 'CloseButton')) {
         $controls[$name] = $window.FindName($name)
     }
     $projectRoot = Split-Path -Parent $PSScriptRoot
     $controls.Location.Text = $projectRoot
+    $controls.CompactLocation.Text = $projectRoot
     $iconPath = Join-Path $projectRoot 'resources/SendToAV1.ico'
     if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
         $iconStream = [IO.File]::OpenRead($iconPath)
@@ -119,11 +123,15 @@ try {
     }
     function Finish-SetupWindow {
         $state.Running = $false
+        $state.Finished = $false
         $controls.Progress.IsIndeterminate = $false
         $controls.ProgressPanel.Visibility = 'Collapsed'
         $controls.DownloadTools.IsEnabled = $true
         $controls.ActionButton.IsEnabled = $true
         $controls.CloseButton.IsEnabled = $true
+        $controls.ActionsPanel.Visibility = 'Visible'
+        $controls.CloseButton.Visibility = 'Visible'
+        $controls.Description.Visibility = 'Visible'
         $controls.Notice.Visibility = 'Collapsed'
         if ($null -eq $state.Result) {
             $state.Result = [PSCustomObject]@{ Status = 'Failed'; Message = 'Setup ended without a result. Please try again.' }
@@ -136,6 +144,8 @@ try {
                 $controls.Heading.Text = 'Installation complete'
                 if ($Uninstall) { $controls.Heading.Text = 'Uninstall complete' }
                 $controls.DownloadOptions.Visibility = 'Collapsed'
+                $controls.LocationCard.Visibility = 'Collapsed'
+                $controls.CompactLocation.Visibility = 'Collapsed'
                 $controls.ActionButton.Content = 'Close'
                 $controls.CloseButton.Visibility = 'Collapsed'
             }
@@ -150,6 +160,8 @@ try {
         }
         $controls.Heading.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $color)
         if (-not $state.Finished) {
+            $controls.DownloadOptions.Visibility = 'Collapsed'
+            if (-not $Uninstall) { $controls.DownloadOptions.Visibility = 'Visible' }
             Add-SetupDetail $state.Result.Message
             $controls.DetailsExpander.IsExpanded = $true
             $controls.ActionButton.Content = 'Try again'
@@ -159,15 +171,24 @@ try {
     function Start-Setup {
         if ($state.Running) { return }
         $state.Running = $true
+        $state.Finished = $false
         $state.Result = $null
         $controls.ActionButton.IsEnabled = $false
         $controls.CloseButton.IsEnabled = $false
         $controls.DownloadTools.IsEnabled = $false
+        $controls.ActionsPanel.Visibility = 'Collapsed'
+        $controls.DownloadOptions.Visibility = 'Collapsed'
+        $controls.LocationCard.Visibility = 'Collapsed'
+        $controls.CompactLocation.Visibility = 'Visible'
         $controls.Heading.Text = 'Installing Send to AV1'
         if ($Uninstall) { $controls.Heading.Text = 'Removing Send to entries' }
         $controls.Heading.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'TextBrush')
-        $controls.Description.Text = 'Please wait while setup finishes. You can expand Details for more information.'
-        $controls.Notice.Visibility = 'Collapsed'
+        $controls.Description.Visibility = 'Collapsed'
+        $controls.Notice.Text = 'Please wait while setup finishes.'
+        $controls.Notice.Visibility = 'Visible'
+        $controls.Details.Clear()
+        $controls.DetailsExpander.IsExpanded = $false
+        $controls.DetailsExpander.Visibility = 'Visible'
         $controls.ProgressPanel.Visibility = 'Visible'
         $controls.Progress.IsIndeterminate = $true
         $controls.Phase.Text = 'Starting setup...'
