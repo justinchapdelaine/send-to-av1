@@ -20,12 +20,14 @@ foreach ($framework in @('Framework64', 'Framework')) {
 }
 if ($null -eq $compiler) { throw 'The Windows .NET Framework C# compiler was not found. The launcher could not be built.' }
 $source = Join-Path $PSScriptRoot 'SendToAv1Launcher.cs'
+$icon = Join-Path (Split-Path -Parent $PSScriptRoot) 'resources/SendToAV1.ico'
+if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) { throw 'The AV1 application icon was not found.' }
 $OutputPath = [IO.Path]::GetFullPath($OutputPath)
 $directory = Split-Path -Parent $OutputPath
 New-Item -ItemType Directory -Path $directory -Force | Out-Null
 $temporary = Join-Path $directory ([Guid]::NewGuid().ToString('N') + '.tmp.exe')
 try {
-    $compilerArguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/debug-', ('/out:{0}' -f $temporary), $source)
+    $compilerArguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/debug-', ('/win32icon:{0}' -f $icon), ('/out:{0}' -f $temporary), $source)
     & $compiler @compilerArguments
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $temporary -PathType Leaf)) {
         throw 'The windowless launcher could not be compiled. Existing shortcuts have been kept.'

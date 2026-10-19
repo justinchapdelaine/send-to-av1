@@ -40,6 +40,7 @@ function Invoke-Installer {
 
 try {
     Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+    Import-Module (Join-Path $repoRoot 'src/AV1.ViewModel.psm1') -Force
     $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')
     $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
     Assert-True $match.Success 'Could not find the actual progress-window layout.'
@@ -48,17 +49,65 @@ try {
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
     foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
-            'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel')) {
+            'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
+            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander')) {
         Assert-True ($null -ne $window.FindName($name)) ('Missing WPF control: ' + $name)
     }
     Assert-True ($window.SizeToContent -eq 'Height') 'The window reserves a fixed height.'
     $results = $window.FindName('Results')
     $results.ApplyTemplate() | Out-Null
     Assert-True ($results.Visibility -eq 'Collapsed') 'The empty results area is visible.'
-    $results.Items.Add('Completed: fixture') | Out-Null
+    $results.Items.Add((Get-AV1ResultView ([PSCustomObject]@{
+        Path = 'fixture.mkv'; Status = 'Completed'; Message = ''; InputBytes = 100; OutputBytes = 50; OutputPath = 'fixture_AV1.mkv'
+    }))) | Out-Null
     Assert-True ($results.Visibility -eq 'Visible') 'Results did not appear after an item was added.'
     $results.Items.Clear()
     Assert-True ($results.Visibility -eq 'Collapsed') 'The empty results area did not collapse again.'
+    # Drive the actual GUI event handlers against the real WPF controls without
+    # launching an encode, so binding/template and error-display failures surface.
+    $controls = @{}
+    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+            'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
+            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander')) {
+        $controls[$name] = $window.FindName($name)
+    }
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
+    $definitions = ($ast.FindAll({ param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst]
+    }, $false) | ForEach-Object { $_.Extent.Text }) -join "`n"
+    . ([scriptblock]::Create($definitions))
+    $cancellation = New-Object Threading.CancellationTokenSource
+    try {
+        $state = @{ Worker = [PSCustomObject]@{ Cancellation = $cancellation }; LastProgress = $null; HasWarnings = $false }
+        $progress = [PSCustomObject]@{
+            Percent = 25; SecondsRemaining = 480; Finalizing = $false
+            DurationSeconds = 1200; ProcessedSeconds = 300; ElapsedSeconds = 160; Status = 'Precise progress'
+        }
+        Update-Window ([PSCustomObject]@{ Type = 'Progress'; Data = [PSCustomObject]@{ Progress = $progress } })
+        Assert-True ($controls.RemainingValue.Text -eq 'About 8 minutes' -and $controls.PercentLabel.Text -eq '25%') 'The timing and percentage controls did not update.'
+        Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FF2563EB') 'Encoding progress did not use the blue accent.'
+        $controls.Progress.ApplyTemplate() | Out-Null
+        Assert-True ($null -ne $controls.Progress.Template.FindName('PART_Indicator', $controls.Progress)) 'The progress template has no indicator.'
+        Update-Window ([PSCustomObject]@{ Type = 'Message'; Data = [PSCustomObject]@{ Message = 'A normal update'; Color = 'Gray' } })
+        Assert-True (-not $controls.DetailsExpander.IsExpanded) 'Normal operation opened troubleshooting details.'
+        Update-Window ([PSCustomObject]@{ Type = 'FileResult'; Data = [PSCustomObject]@{
+            Status = 'Failed'; Path = 'fixture.mkv'; Message = 'Test failure'
+        } })
+        Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.StatusLabel.Text -eq 'Failed') 'A failed file did not reveal its error details.'
+        Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FFB91C1C') 'A failure did not use the error color.'
+        $results.Items.Clear()
+    }
+    finally { $cancellation.Dispose() }
+    $iconStream = [IO.File]::OpenRead((Join-Path $repoRoot 'resources/SendToAV1.ico'))
+    try {
+        $icon = [Windows.Media.Imaging.BitmapFrame]::Create($iconStream,
+            [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat,
+            [Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
+        Assert-True ($icon.PixelWidth -gt 0) 'The AV1 icon could not be decoded by WPF.'
+        $window.Icon = $icon
+    }
+    finally { $iconStream.Dispose() }
     $window.Close()
     $window = $null
 
@@ -82,6 +131,7 @@ try {
         $shortcut = $shell.CreateShortcut($shortcutPath)
         try {
             Assert-True ($shortcut.TargetPath -eq $launcherPath) 'Shortcut does not target the windowless launcher.'
+            Assert-True ($shortcut.IconLocation -eq ($launcherPath + ',0')) 'Shortcut does not use the AV1 application icon.'
             Assert-True ($shortcut.Arguments.Contains(('"{0}"' -f (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')))) 'GUI path was not quoted correctly.'
             if ($name -like '*NVIDIA') { Assert-True ($shortcut.Arguments -match '--mode nvidia') 'NVIDIA shortcut lost its mode.' }
             elseif ($name -like '*Small') { Assert-True ($shortcut.Arguments -match '--mode small') 'Small shortcut lost its mode.' }

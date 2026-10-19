@@ -15,4 +15,4 @@ You can install or update BtbN portable FFmpeg tools with:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ..\src\Download-FFmpeg.ps1
 ```
 
-The Send to installer also builds `SendToAV1.Launcher.exe` here from `src/SendToAv1Launcher.cs`, using the .NET Framework C# compiler included with Windows. This small GUI executable starts PowerShell without creating a console window. Re-running the installer rebuilds it and updates the shortcuts. The generated executable is ignored by Git.
+The Send to installer also builds `SendToAV1.Launcher.exe` here from `src/SendToAv1Launcher.cs`, using the .NET Framework C# compiler included with Windows and embedding `resources/SendToAV1.ico`. This small GUI executable starts PowerShell without creating a console window. Re-running the installer rebuilds it and updates the shortcuts and their icons. The generated executable is ignored by Git.

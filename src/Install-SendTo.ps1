@@ -39,7 +39,7 @@ if ($Uninstall) {
 }
 
 $guiPath = Join-Path $PSScriptRoot 'Show-AV1Progress.ps1'
-foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
+foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 'AV1.ViewModel.psm1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $name) -PathType Leaf)) {
         throw ('Missing required file: {0}' -f $name)
     }
@@ -47,7 +47,6 @@ foreach ($name in @('Show-AV1Progress.ps1', 'AV1.Core.psm1', 'AV1.Worker.psm1', 
 New-Item -ItemType Directory -Path $sendTo -Force | Out-Null
 $LauncherPath = [IO.Path]::GetFullPath($LauncherPath)
 & (Join-Path $PSScriptRoot 'Build-Launcher.ps1') -OutputPath $LauncherPath
-$icon = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell/v1.0/powershell.exe'
 $shell = New-Object -ComObject WScript.Shell
 try {
     foreach ($entry in $entries) {
@@ -58,7 +57,7 @@ try {
             $shortcut.Arguments = '--gui "{0}" --mode {1}' -f $guiPath, $entry.Mode
             $shortcut.WorkingDirectory = Split-Path -Parent $PSScriptRoot
             $shortcut.Description = 'Convert selected videos to AV1 and show progress.'
-            $shortcut.IconLocation = $icon + ',0'
+            $shortcut.IconLocation = $LauncherPath + ',0'
             $shortcut.Save()
         }
         finally { [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null }

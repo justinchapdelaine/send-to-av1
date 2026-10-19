@@ -162,7 +162,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -
 
 ## Encoding progress and diagnostics
 
-The Send to entries use a windowless launcher to open the Windows WPF window without a console flash. The window shows the mode, filename and batch position, a progress bar and percentage, processed video time, elapsed time, and estimated time remaining. A background worker performs the encoding so the window remains responsive. Manual console use shows the corresponding text progress bar.
+The Send to entries use a windowless launcher to open the Windows WPF window without a console flash. The current filename is the main heading, with the mode and batch position beneath it. A blue progress bar and prominent percentage show encoding progress. Separate timing fields show an approximate remaining time (for example, "About 8 minutes"), elapsed time, and processed video time. Hover over the estimate for a precise timestamp. A background worker performs the encoding so the window remains responsive. Manual console use shows the corresponding text progress bar.
 
 FFprobe supplies the total duration and FFmpeg supplies structured progress timestamps. The estimate changes with encoding speed; completion is reported only after FFmpeg succeeds and the output file is finalized.
 
@@ -170,7 +170,9 @@ Use **Cancel** to stop the current encode and the remaining batch. The worker st
 
 Cancellation also stops FFprobe and capability checks during video inspection. Each inspection process has a 30-second timeout. A timed-out codec probe skips that file with a warning; a timed-out duration probe continues without a duration estimate. Timeouts on required capability checks are reported as failures.
 
-The window starts compact, with the results list hidden until there is a completed, skipped, failed, or cancelled file to report. It grows to show results and expanded details, with scrolling for longer batches and smaller screens. Results include final output paths and size comparisons for completed files. **Open output folder** opens the folder of the most recently completed output. Expand **Details** for warnings and failure information. The window stays open when the batch finishes so the results can be reviewed.
+The window starts compact, with the results list hidden until there is a completed, skipped, failed, or cancelled file to report. It grows to show results and expanded details, with scrolling for longer batches and smaller screens. Each result has a status icon, filename, and readable size comparison; the full output path is secondary. Green indicates successful completion, amber indicates warnings or larger outputs, and red indicates failures. **Open output folder** opens the folder of the most recently completed output. **Details** opens automatically for errors and includes precise progress timestamps; it remains collapsed during normal operation. The window stays open when the batch finishes so the results can be reviewed.
+
+The window and Send to shortcuts use the bundled AV1 icon. Re-run the installer after updating to rebuild the launcher with the new icon and refresh the shortcut icons.
 
 If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.
 
@@ -275,6 +277,12 @@ Verify the C# launcher's process options, mode selection, and native argument ha
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Launcher.ps1
+```
+
+Check human-readable time estimates and result presentation without WPF, including unknown durations, finalization, long encodes, larger outputs, and non-completed files:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiPresentation.ps1
 ```
 
 On Windows, validate the actual WPF layout, automatic results visibility, and shortcut installation, upgrade, reinstallation, and removal. The test also builds the real launcher, checks its GUI executable type, and runs it with a recording script to verify all three modes, selected file paths, and the absence of a console in the PowerShell child. This test uses a temporary destination and does not alter the user's Send to entries or installed launcher. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
