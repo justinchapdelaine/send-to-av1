@@ -43,6 +43,7 @@ function Invoke-Installer {
 try {
     Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
     Import-Module (Join-Path $repoRoot 'src/AV1.ViewModel.psm1') -Force
+    Import-Module (Join-Path $repoRoot 'src/AV1.Theme.psm1') -Force
     $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')
     $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
     Assert-True $match.Success 'Could not find the actual progress-window layout.'
@@ -50,6 +51,7 @@ try {
     $reader = New-Object Xml.XmlNodeReader $layout
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
+    Set-AV1WindowTheme -Window $window -Theme Light
     foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
             'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
@@ -75,6 +77,24 @@ try {
             'ProgressPanel', 'TimingPanel')) {
         $controls[$name] = $window.FindName($name)
     }
+    Assert-True ($controls.ActionButton.Style -eq $window.FindResource('CancelButton')) 'The running action did not use the outlined cancel style.'
+    Assert-True ($controls.FolderButton.Background.Color.ToString() -eq '#FFF1F5F9') 'The disabled folder button did not use its disabled palette.'
+    $controls.ActionButton.ApplyTemplate() | Out-Null
+    Assert-True ($null -ne $controls.ActionButton.Template.FindName('FocusRing', $controls.ActionButton)) 'The button template lost its keyboard focus indicator.'
+    # Drive the actual result-color style on the window's logical tree.
+    $statusProbe = New-Object Windows.Controls.TextBlock
+    $statusProbe.Style = $window.FindResource('ResultColor')
+    $statusProbe.DataContext = Get-AV1ResultView ([PSCustomObject]@{
+        Path = 'fixture.mkv'; Status = 'Completed'; Message = ''; InputBytes = 10MB; OutputBytes = 5MB; OutputPath = 'fixture_AV1.mkv'
+    })
+    $controls.Results.Parent.Children.Add($statusProbe) | Out-Null
+    $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+    foreach ($theme in @('Light', 'Dark', 'HighContrast')) {
+        Set-AV1WindowTheme -Window $window -Theme $theme
+        Assert-True ($statusProbe.Foreground.Color -eq $window.Resources['SuccessBrush'].Color) 'An existing result did not follow its theme status color.'
+    }
+    $controls.Results.Parent.Children.Remove($statusProbe)
+    Set-AV1WindowTheme -Window $window -Theme Light
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
     $definitions = ($ast.FindAll({ param($node)
@@ -93,6 +113,10 @@ try {
         Update-Window ([PSCustomObject]@{ Type = 'Progress'; Data = [PSCustomObject]@{ Progress = $progress } })
         Assert-True ($controls.RemainingValue.Text -eq 'About 8 minutes' -and $controls.PercentLabel.Text -eq '25%') 'The timing and percentage controls did not update.'
         Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FF2563EB') 'Encoding progress did not use the blue accent.'
+        Set-AV1WindowTheme -Window $window -Theme Dark
+        Assert-True ($window.Background.Color.ToString() -eq '#FF111827' -and $controls.Details.Background.Color.ToString() -eq '#FF1F2937') 'Dark mode left the window or details panel light.'
+        Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FF93B4FF' -and $controls.PercentLabel.Text -eq '25%' -and $controls.RemainingValue.Text -eq 'About 8 minutes') 'Switching themes lost progress or its semantic color.'
+        Set-AV1WindowTheme -Window $window -Theme Light
         $controls.Progress.ApplyTemplate() | Out-Null
         Assert-True ($null -ne $controls.Progress.Template.FindName('PART_Indicator', $controls.Progress)) 'The progress template has no indicator.'
         Update-Window ([PSCustomObject]@{ Type = 'Message'; Data = [PSCustomObject]@{ Message = 'A normal update'; Color = 'Gray' } })
@@ -114,6 +138,13 @@ try {
         Assert-True ($controls.FileLabel.Text -eq 'Encoding complete' -and $controls.BatchLabel.Text -match '^Finished in ') 'Completion did not replace the filename heading and batch position.'
         Assert-True ($controls.SummaryLabel.Text -eq '' -and $controls.TimeLabel.Text -eq '' -and -not $results.Items[0].ShowStatus) 'Single-file success repeats counts, savings, or status.'
         Assert-True (-not $state.Clock.IsRunning -and $controls.ActionButton.Content -eq 'Close') 'Completion did not stop timing or enable closing.'
+        Assert-True ($controls.ActionButton.Style -eq $window.FindResource('PrimaryButton') -and $controls.ActionButton.Background.Color.ToString() -eq '#FF2563EB') 'Close did not use the primary button style.'
+        Set-AV1WindowTheme -Window $window -Theme Dark
+        Assert-True ($controls.FileLabel.Foreground.Color.ToString() -eq '#FF86EFAC' -and $controls.ProgressPanel.Visibility -eq 'Collapsed') 'Switching themes after completion lost the outcome color or layout.'
+        $controls.ActionButton.IsEnabled = $false
+        Assert-True ($controls.ActionButton.Background.Color.ToString() -eq '#FF263141') 'The disabled primary button did not use the dark palette.'
+        $controls.ActionButton.IsEnabled = $true
+        Set-AV1WindowTheme -Window $window -Theme Light
         Assert-True ([Windows.Controls.Grid]::GetRow($controls.SummaryLabel.Parent) -lt [Windows.Controls.Grid]::GetRow($results)) 'Batch summary is not above the result cards.'
 
         $state.FileCount = 3
@@ -139,6 +170,9 @@ try {
         $window.Icon = $icon
     }
     finally { $iconStream.Dispose() }
+    (New-Object Windows.Interop.WindowInteropHelper $window).EnsureHandle() | Out-Null
+    Set-AV1WindowTheme -Window $window -Theme Dark
+    Assert-True ($null -ne ('SendToAv1Theme.NativeMethods' -as [type])) 'The native title-bar theme helper did not compile.'
     $window.Close()
     $window = $null
 

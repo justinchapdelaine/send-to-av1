@@ -45,6 +45,8 @@ On Windows 11, you may need **Show more options → Send to**.
 
 Encoding starts automatically. The window shows the current file, its position in the batch, progress, and timing estimates. Files are processed one at a time. Hover over the remaining-time estimate for a precise timestamp.
 
+The window follows Windows' light/dark app preference and updates when you change it, including after encoding finishes. Buttons use consistent rounded styling, with an outlined Cancel action while running and a blue Close action afterward. Windows high-contrast colors are respected.
+
 Use **Cancel** to stop the current encode and the rest of the batch. Incomplete output is removed; completed files remain. When finished, review the size comparisons or choose **Open output folder**. **Details** opens automatically for errors and can be expanded for other diagnostic information.
 
 When encoding finishes, progress and timing fields are replaced by a completion heading and time taken. Result cards show each file's size comparison and output path; batches also show counts and total savings above the cards.

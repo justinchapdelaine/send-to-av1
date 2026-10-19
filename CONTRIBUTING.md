@@ -15,6 +15,7 @@ Run commands below from the project folder. Use temporary clips for encoding che
 | `src/Show-AV1Progress.ps1` | WPF progress window |
 | `src/AV1.Worker.psm1` | Background runspace and event queue |
 | `src/AV1.ViewModel.psm1` | Time estimates and result formatting |
+| `src/AV1.Theme.psm1` | Windows theme detection, palettes, and window color resources |
 | `src/SendToAv1Launcher.cs` | Windowless PowerShell launcher |
 | `src/Build-Launcher.ps1` | Build the launcher with the Windows .NET Framework compiler |
 | `src/Install-SendTo.ps1` | Per-user shortcut installation and removal |
@@ -72,7 +73,13 @@ Check human-readable time estimates and result presentation without WPF, includi
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiPresentation.ps1
 ```
 
-On Windows, validate the actual WPF layout, automatic results visibility, and shortcut installation, upgrade, reinstallation, and removal. The test also builds the real launcher, checks its GUI executable type, and runs it with a recording script to verify all three modes, selected file paths, and the absence of a console in the PowerShell child. This test uses a temporary destination and does not alter the user's Send to entries or installed launcher. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
+Check light/dark palette completeness, status-color mapping, and text contrast without WPF:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiTheme.ps1
+```
+
+On Windows, validate the actual WPF layout, automatic results visibility, live palette changes, button styles, and shortcut installation, upgrade, reinstallation, and removal. The test also builds the real launcher, checks its GUI executable type, and runs it with a recording script to verify all three modes, selected file paths, and the absence of a console in the PowerShell child. This test uses a temporary destination and does not alter the user's Send to entries or installed launcher. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
 
 ```powershell
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsIntegration.ps1
@@ -80,3 +87,5 @@ pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\Test-WindowsInteg
 ```
 
 Before release, verify on an interactive Windows desktop that all three Send to entries open a compact window without a console flash; multi-file selections (including spaces and Unicode paths) arrive intact; progress remains responsive; the results area appears when needed; warnings and errors are visible; Cancel and closing an active window clean up; and completed results and output-folder navigation work. Verify NVIDIA encoding on supported hardware. The Windows integration test does not automate these Explorer and interactive window behaviors.
+
+Also switch Windows' app theme during an encode and after completion, and check high-contrast mode. Verify the caption, result cards, tooltips, and expanded Details, plus button hover, press, disabled appearance, and Tab/Space keyboard interaction in both themes. These checks must not change progress, completed results, or cancellation behavior.

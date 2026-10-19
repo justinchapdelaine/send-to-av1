@@ -143,6 +143,8 @@ After encoding stops, the progress bar and timing panel are hidden. A completion
 
 The window and Send to shortcuts use the bundled AV1 icon. Re-run the installer after updating to rebuild the launcher with the new icon and refresh the shortcut icons.
 
+The interface follows the current user's Windows **app** light/dark preference, checking for changes every two seconds while the window is open. Cards, progress and result colors, details, tooltips, and buttons update together without restarting encoding or changing the finished layout. High-contrast mode uses Windows system colors. The native title bar requests the matching theme on supported Windows versions and otherwise keeps its normal appearance. Buttons provide hover, pressed, disabled, and keyboard-focus states; Cancel is outlined with a red hover state, Open output folder is outlined, and Close uses the primary blue style.
+
 If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.
 
 Detailed FFmpeg/SVT output goes to a temporary diagnostic log. Error-level diagnostics are still shown as a warning when FFmpeg recovers and exits successfully; inspect the output before relying on it. Normal completion deletes the log. On failure, the most recent diagnostic lines appear in **Details** (or in the console for manual use) before the log is deleted. If a log cannot be deleted, its path is reported and the encoded video is preserved. Handled interruptions also clean up; a forced shutdown may leave a temporary log behind.
