@@ -79,6 +79,20 @@ Check light/dark palette completeness, status-color mapping, and text contrast w
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiTheme.ps1
 ```
 
+Audit the actual GUI XAML and theme module against WPF's public APIs, including inherited and attached properties, dependency properties, style setters, template bindings, palette references, enums, and events:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-WpfApi.ps1
+```
+
+This check also supports metadata-only inspection on PowerShell 7.4+ without Windows. Extract the [Microsoft.NETFramework.ReferenceAssemblies.net48 1.0.3](https://www.nuget.org/packages/Microsoft.NETFramework.ReferenceAssemblies.net48/1.0.3) and [System.Reflection.MetadataLoadContext 8.0.0](https://www.nuget.org/packages/System.Reflection.MetadataLoadContext/8.0.0) packages, then supply their assembly paths:
+
+```powershell
+pwsh -NoProfile -File ./tests/Test-WpfApi.ps1 -ReferenceDirectory /path/to/net48/build/.NETFramework/v4.8 -MetadataLoadContextPath /path/to/metadataloadcontext/lib/net8.0/System.Reflection.MetadataLoadContext.dll
+```
+
+The metadata check executes no WPF code. It catches invalid API/property references but does not replace the Windows runtime checks below.
+
 On Windows, validate the actual WPF layout, automatic results visibility, live palette changes, button styles, and shortcut installation, upgrade, reinstallation, and removal. The test also builds the real launcher, checks its GUI executable type, and runs it with a recording script to verify all three modes, selected file paths, and the absence of a console in the PowerShell child. This test uses a temporary destination and does not alter the user's Send to entries or installed launcher. Run it with both Windows PowerShell 5.1 and PowerShell 7 when available:
 
 ```powershell

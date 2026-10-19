@@ -42,6 +42,7 @@ function Invoke-Installer {
 
 try {
     Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+    & (Join-Path $PSScriptRoot 'Test-WpfApi.ps1')
     Import-Module (Join-Path $repoRoot 'src/AV1.ViewModel.psm1') -Force
     Import-Module (Join-Path $repoRoot 'src/AV1.Theme.psm1') -Force
     # Read resource values inside CLR code: PowerShell's property adapter can
@@ -57,21 +58,27 @@ public static class Av1ThemeResourceInspector {
 }
 '@
     }
-    $resourceProbe = [PSCustomObject]@{
-        Resources = [Windows.ResourceDictionary]::new(); IsSourceInitialized = $false
-    }
-    foreach ($theme in @('Light', 'Dark', 'HighContrast')) {
-        Set-AV1WindowTheme -Window $resourceProbe -Theme $theme
-        foreach ($key in (Get-AV1ThemePalette $theme).Keys) {
-            Assert-True ([Av1ThemeResourceInspector]::HasType($resourceProbe.Resources, $key, [Windows.Media.Brush])) ('WPF received a wrapped or invalid resource: ' + $theme + '/' + $key)
+    # Use a real Window before native initialization; a fake window can hide
+    # accidental references to properties that WPF does not actually expose.
+    $resourceProbe = [Windows.Window]::new()
+    $probeInterop = [Windows.Interop.WindowInteropHelper]::new($resourceProbe)
+    try {
+        Assert-True ($probeInterop.Handle -eq [IntPtr]::Zero) 'The theme probe already has a native handle.'
+        foreach ($theme in @('Light', 'Dark', 'HighContrast')) {
+            Set-AV1WindowTheme -Window $resourceProbe -Theme $theme
+            foreach ($key in (Get-AV1ThemePalette $theme).Keys) {
+                Assert-True ([Av1ThemeResourceInspector]::HasType($resourceProbe.Resources, $key, [Windows.Media.Brush])) ('WPF received a wrapped or invalid resource: ' + $theme + '/' + $key)
+            }
+            foreach ($key in @([Windows.SystemColors]::ControlBrushKey, [Windows.SystemColors]::ControlTextBrushKey,
+                    [Windows.SystemColors]::WindowBrushKey, [Windows.SystemColors]::WindowTextBrushKey,
+                    [Windows.SystemColors]::HighlightBrushKey, [Windows.SystemColors]::HighlightTextBrushKey,
+                    [Windows.SystemColors]::GrayTextBrushKey)) {
+                Assert-True ([Av1ThemeResourceInspector]::HasType($resourceProbe.Resources, $key, [Windows.Media.Brush])) 'A system-color resource alias retained a PowerShell wrapper.'
+            }
+            Assert-True ($probeInterop.Handle -eq [IntPtr]::Zero) 'Applying a theme created a native window before startup.'
         }
-        foreach ($key in @([Windows.SystemColors]::ControlBrushKey, [Windows.SystemColors]::ControlTextBrushKey,
-                [Windows.SystemColors]::WindowBrushKey, [Windows.SystemColors]::WindowTextBrushKey,
-                [Windows.SystemColors]::HighlightBrushKey, [Windows.SystemColors]::HighlightTextBrushKey,
-                [Windows.SystemColors]::GrayTextBrushKey)) {
-            Assert-True ([Av1ThemeResourceInspector]::HasType($resourceProbe.Resources, $key, [Windows.Media.Brush])) 'A system-color resource alias retained a PowerShell wrapper.'
-        }
     }
+    finally { $resourceProbe.Close() }
     $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/Show-AV1Progress.ps1')
     $match = [regex]::Match($source, '(?s)\[xml\]\$layout = @''\r?\n(.*?)\r?\n''@')
     Assert-True $match.Success 'Could not find the actual progress-window layout.'

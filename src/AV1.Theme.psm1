@@ -86,11 +86,13 @@ function Set-AV1WindowTheme {
     $Window.Resources[[Windows.SystemColors]::HighlightBrushKey] = $Window.Resources['PrimaryBrush']
     $Window.Resources[[Windows.SystemColors]::HighlightTextBrushKey] = $Window.Resources['PrimaryTextBrush']
     $Window.Resources[[Windows.SystemColors]::GrayTextBrushKey] = $Window.Resources['DisabledTextBrush']
-    # Native title-bar theming is optional on older versions of Windows.
-    if ($Window.IsSourceInitialized) {
-        try {
-            if (-not ('SendToAv1Theme.NativeMethods' -as [type])) {
-                Add-Type -TypeDefinition @'
+    # Reading Handle does not create a native window. The SourceInitialized
+    # handler reapplies the theme once the handle exists. Caption support is optional.
+    try {
+        $handle = [Windows.Interop.WindowInteropHelper]::new($Window).Handle
+        if ($handle -eq [IntPtr]::Zero) { return }
+        if (-not ('SendToAv1Theme.NativeMethods' -as [type])) {
+            Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 namespace SendToAv1Theme {
@@ -100,14 +102,12 @@ namespace SendToAv1Theme {
     }
 }
 '@
-            }
-            $handle = (New-Object Windows.Interop.WindowInteropHelper $Window).Handle
-            $dark = [int]($Theme -eq 'Dark')
-            $result = [SendToAv1Theme.NativeMethods]::DwmSetWindowAttribute($handle, 20, [ref]$dark, 4)
-            if ($result -lt 0) { [SendToAv1Theme.NativeMethods]::DwmSetWindowAttribute($handle, 19, [ref]$dark, 4) | Out-Null }
         }
-        catch { } # Keep the native caption when immersive dark mode is unavailable.
+        $dark = [int]($Theme -eq 'Dark')
+        $result = [SendToAv1Theme.NativeMethods]::DwmSetWindowAttribute($handle, 20, [ref]$dark, 4)
+        if ($result -lt 0) { [SendToAv1Theme.NativeMethods]::DwmSetWindowAttribute($handle, 19, [ref]$dark, 4) | Out-Null }
     }
+    catch { } # Keep the native caption when immersive dark mode is unavailable.
 }
 
 Export-ModuleMember -Function Get-AV1ThemePalette, Get-AV1StatusBrushKey, Get-AV1WindowsTheme, Set-AV1WindowTheme
