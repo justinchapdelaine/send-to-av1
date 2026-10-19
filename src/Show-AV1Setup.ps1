@@ -42,11 +42,10 @@ try {
                 </StackPanel>
             </Border>
             <StackPanel Name="DownloadOptions" Margin="0,18,0,0">
-                <CheckBox Name="DownloadTools" IsChecked="True" Foreground="{DynamicResource TextBrush}"
-                          Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}">
+                <CheckBox Name="DownloadTools" IsChecked="True" Style="{StaticResource ThemedCheckBox}">
                     <TextBlock Text="Download or update portable FFmpeg" TextWrapping="Wrap"/>
                 </CheckBox>
-                <TextBlock Margin="20,6,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
+                <TextBlock Margin="32,6,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
                            Text="Uses BtbN's GPL Windows builds and checks for updates. Clear this option if you provide your own FFmpeg and FFprobe."/>
             </StackPanel>
             <StackPanel Name="ProgressPanel" Visibility="Collapsed" Margin="0,20,0,0">
@@ -55,7 +54,7 @@ try {
                              Foreground="{DynamicResource PrimaryBrush}" Background="{DynamicResource TrackBrush}" BorderThickness="0"/>
             </StackPanel>
             <TextBlock Name="Notice" Visibility="Collapsed" Margin="0,16,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
-            <Expander Name="DetailsExpander" Header="Details" Visibility="Collapsed" Margin="0,18,0,0" Foreground="{DynamicResource MutedBrush}">
+            <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Visibility="Collapsed" Margin="0,18,0,0">
                 <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="120" FontFamily="Consolas" FontSize="11"
                          Foreground="{DynamicResource TextBrush}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
                          Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"/>

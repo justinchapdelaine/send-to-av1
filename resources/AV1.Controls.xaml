@@ -6,6 +6,146 @@
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         </Style>
+        <Style x:Key="ThemedCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Background="Transparent">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid Width="24" Height="24" HorizontalAlignment="Left" VerticalAlignment="Top">
+                                <Border Name="CheckFocusRing" CornerRadius="6" BorderThickness="2" BorderBrush="Transparent" IsHitTestVisible="False"/>
+                                <Border Name="CheckSurface" Margin="3" CornerRadius="3" BorderThickness="1"
+                                        Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}">
+                                    <Path Name="CheckGlyph" Data="M 2,6 L 5,9 L 10,2" Margin="3" Stretch="Uniform"
+                                          Stroke="{DynamicResource PrimaryTextBrush}" StrokeThickness="2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Collapsed"/>
+                                </Border>
+                            </Grid>
+                            <ContentPresenter Grid.Column="1" Margin="4,0,0,0" RecognizesAccessKey="True"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                <Setter TargetName="CheckSurface" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="CheckGlyph" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CheckSurface" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="True"/><Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource PrimaryHoverBrush}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource PressedBrush}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="True"/><Condition Property="IsPressed" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource PrimaryPressedBrush}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="CheckFocusRing" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                                <Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource DisabledBrush}"/>
+                                <Setter TargetName="CheckSurface" Property="BorderBrush" Value="{DynamicResource DisabledTextBrush}"/>
+                                <Setter TargetName="CheckGlyph" Property="Stroke" Value="{DynamicResource DisabledTextBrush}"/>
+                                <Setter TargetName="CheckFocusRing" Property="BorderBrush" Value="Transparent"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DetailsHeader" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border Name="DetailsFocusRing" CornerRadius="7" BorderThickness="2" BorderBrush="Transparent" IsHitTestVisible="False"/>
+                            <Border Margin="3" Padding="{TemplateBinding Padding}" CornerRadius="4" Background="{TemplateBinding Background}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Path Name="DetailsChevron" Width="16" Height="16" VerticalAlignment="Center" Stretch="None"
+                                          Data="M 6,4 L 10,8 L 6,12" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.7"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                                    <ContentPresenter Grid.Column="1" VerticalAlignment="Center" RecognizesAccessKey="True"
+                                                      TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="DetailsChevron" Property="Data" Value="M 4,6 L 8,10 L 12,6"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="DetailsFocusRing" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource HoverTextBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource PressedBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource HoverTextBrush}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DetailsExpander" TargetType="Expander">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <!-- WPF uses HeaderSite to connect the header's automation events and focus. -->
+                            <ToggleButton Name="HeaderSite" Style="{StaticResource DetailsHeader}" HorizontalAlignment="Left"
+                                          Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding HeaderTemplateSelector}" ContentStringFormat="{TemplateBinding HeaderStringFormat}"
+                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"/>
+                            <ContentPresenter Name="DetailsContent" Grid.Row="1" ContentSource="Content" Visibility="Collapsed"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="DetailsContent" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="SecondaryButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>

@@ -140,6 +140,30 @@ public static class Av1ThemeResourceInspector {
     Assert-True ($controls.FolderButton.Background.Color.ToString() -eq '#FFF1F5F9') 'The disabled folder button did not use its disabled palette.'
     $controls.ActionButton.ApplyTemplate() | Out-Null
     Assert-True ($null -ne $controls.ActionButton.Template.FindName('FocusRing', $controls.ActionButton)) 'The button template lost its keyboard focus indicator.'
+    $expander = $controls.DetailsExpander
+    $expander.ApplyTemplate() | Out-Null
+    $detailsToggle = $expander.Template.FindName('HeaderSite', $expander)
+    $detailsContent = $expander.Template.FindName('DetailsContent', $expander)
+    Assert-True ($null -ne $detailsToggle -and $null -ne $detailsContent) 'Encoding does not use the shared Details template.'
+    $detailsToggle.ApplyTemplate() | Out-Null
+    $chevron = $detailsToggle.Template.FindName('DetailsChevron', $detailsToggle)
+    Assert-True ($detailsToggle.Focusable -and $detailsToggle.IsTabStop -and
+        $null -ne $detailsToggle.Template.FindName('DetailsFocusRing', $detailsToggle)) 'Encoding Details lost keyboard access or focus styling.'
+    foreach ($theme in @('Light', 'Dark', 'HighContrast')) {
+        Set-AV1WindowTheme -Window $window -Theme $theme
+        $expander.IsExpanded = $false
+        $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+        Assert-True (-not $detailsToggle.IsChecked -and $detailsContent.Visibility -eq 'Collapsed' -and
+            $chevron.Data.Bounds.Height -gt $chevron.Data.Bounds.Width) 'Collapsed encoding Details lost its right chevron or exposes content.'
+        Assert-True ($chevron.Stroke.Color -eq $window.Resources['MutedBrush'].Color) ('Encoding Details ignored its theme: ' + $theme)
+        $detailsToggle.IsChecked = $true
+        $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+        Assert-True ($expander.IsExpanded -and $detailsContent.Visibility -eq 'Visible' -and
+            $chevron.Data.Bounds.Width -gt $chevron.Data.Bounds.Height) 'The encoding Details toggle did not expand content with a down chevron.'
+        $expander.IsExpanded = $false
+        $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+        Assert-True (-not $detailsToggle.IsChecked -and $detailsContent.Visibility -eq 'Collapsed') 'Programmatic encoding Details changes lost their binding.'
+    }
     # Drive the actual result-color style on the window's logical tree.
     $statusProbe = New-Object Windows.Controls.TextBlock
     $statusProbe.Style = $window.FindResource('ResultColor')

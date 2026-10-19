@@ -42,6 +42,22 @@ try {
     Assert-True ($controls.DownloadTools.IsChecked -and $controls.ActionButton.IsEnabled) 'The initial installation choices are unavailable.'
     $controls.ActionButton.ApplyTemplate() | Out-Null
     Assert-True ($null -ne $controls.ActionButton.Template.FindName('FocusRing', $controls.ActionButton)) 'Setup does not use the shared button template.'
+    $checkBox = $controls.DownloadTools
+    $checkBox.ApplyTemplate() | Out-Null
+    $checkSurface = $checkBox.Template.FindName('CheckSurface', $checkBox)
+    $checkGlyph = $checkBox.Template.FindName('CheckGlyph', $checkBox)
+    $checkFocusRing = $checkBox.Template.FindName('CheckFocusRing', $checkBox)
+    Assert-True ($null -ne $checkSurface -and $null -ne $checkGlyph -and $null -ne $checkFocusRing) 'Setup still uses the stock checkbox template.'
+    Assert-True ($checkBox.Focusable -and $checkBox.IsTabStop) 'The download choice cannot receive keyboard focus.'
+    $expander = $controls.DetailsExpander
+    $expander.ApplyTemplate() | Out-Null
+    $detailsToggle = $expander.Template.FindName('HeaderSite', $expander)
+    $detailsContent = $expander.Template.FindName('DetailsContent', $expander)
+    Assert-True ($null -ne $detailsToggle -and $null -ne $detailsContent) 'Setup does not use the shared Details template.'
+    $detailsToggle.ApplyTemplate() | Out-Null
+    $chevron = $detailsToggle.Template.FindName('DetailsChevron', $detailsToggle)
+    Assert-True ($detailsToggle.Focusable -and $detailsToggle.IsTabStop -and
+        $null -ne $detailsToggle.Template.FindName('DetailsFocusRing', $detailsToggle)) 'Setup Details lost keyboard access or focus styling.'
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
     Assert-True ($errors.Count -eq 0) 'The setup window script does not parse.'
@@ -56,6 +72,41 @@ try {
         $controls.ActionButton.IsEnabled = $false
         Assert-True ($controls.ActionButton.Background.Color -eq $window.Resources['DisabledBrush'].Color) 'Disabled setup buttons did not follow the theme.'
         $controls.ActionButton.IsEnabled = $true
+
+        $expander.IsExpanded = $false
+        $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+        Assert-True (-not $detailsToggle.IsChecked -and $detailsContent.Visibility -eq 'Collapsed' -and
+            $chevron.Data.Bounds.Height -gt $chevron.Data.Bounds.Width) 'Collapsed setup Details lost its right chevron or exposes content.'
+        Assert-True ($chevron.Stroke.Color -eq $window.Resources['MutedBrush'].Color) ('Setup Details ignored its theme: ' + $theme)
+        $detailsToggle.IsChecked = $true
+        $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+        Assert-True ($expander.IsExpanded -and $detailsContent.Visibility -eq 'Visible' -and
+            $chevron.Data.Bounds.Width -gt $chevron.Data.Bounds.Height) 'The setup Details toggle did not expand content with a down chevron.'
+        $expander.IsExpanded = $false
+        $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
+        Assert-True (-not $detailsToggle.IsChecked -and $detailsContent.Visibility -eq 'Collapsed') 'Programmatic setup Details changes lost their binding.'
+
+        # The selected state must be visible before any mouse hover. Exercise
+        # the actual template, including disabled states used while setup runs.
+        $checkBox.IsChecked = $true
+        Assert-True (-not $checkBox.IsMouseOver) 'The checkbox regression check unexpectedly has mouse hover.'
+        Assert-True ($checkSurface.Background.Color -eq $window.Resources['PrimaryBrush'].Color -and
+            $checkGlyph.Visibility -eq 'Visible' -and $checkGlyph.Stroke.Color -eq $window.Resources['PrimaryTextBrush'].Color) ('The checked option lacks its contrasting fill/checkmark: ' + $theme)
+        Assert-True ($checkSurface.BorderBrush.Color -eq $window.Resources['AccentBrush'].Color) ('The checked option lost its visible border: ' + $theme)
+        $checkBox.IsChecked = $false
+        Assert-True ($checkGlyph.Visibility -eq 'Collapsed' -and $checkSurface.Background.Color -eq $window.Resources['SurfaceBrush'].Color -and
+            $checkSurface.BorderBrush.Color -eq $window.Resources['MutedBrush'].Color) ('The unchecked option is ambiguous: ' + $theme)
+        $checkBox.IsChecked = $true
+        $checkBox.IsEnabled = $false
+        Assert-True ($checkGlyph.Visibility -eq 'Visible' -and $checkGlyph.Stroke.Color -eq $window.Resources['DisabledTextBrush'].Color -and
+            $checkSurface.Background.Color -eq $window.Resources['DisabledBrush'].Color -and
+            $checkBox.Foreground.Color -eq $window.Resources['DisabledTextBrush'].Color) ('The disabled option lost its selected state or theme: ' + $theme)
+        $checkBox.IsChecked = $false
+        Assert-True ($checkGlyph.Visibility -eq 'Collapsed') ('The disabled unchecked option still displays a checkmark: ' + $theme)
+        $checkBox.IsEnabled = $true
+        $checkBox.IsChecked = $true
+        Assert-True ($checkGlyph.Stroke.Color -eq $window.Resources['PrimaryTextBrush'].Color -and
+            $checkBox.Foreground.Color -eq $window.Resources['TextBrush'].Color) ('Re-enabling the option did not restore its theme: ' + $theme)
     }
     $Uninstall = $false
     $state = @{ Running = $true; Finished = $false; Result = $null }

@@ -181,7 +181,7 @@ try {
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <Expander Name="DetailsExpander" Header="Details" Grid.Row="6" Margin="0,14,0,0" Foreground="{DynamicResource MutedBrush}">
+        <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Grid.Row="6" Margin="0,14,0,0">
             <TextBox Name="Details" IsReadOnly="True" TextWrapping="Wrap" Height="110" FontFamily="Consolas" FontSize="11"
                      Foreground="{DynamicResource TextBrush}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
                      Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"/>

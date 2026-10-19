@@ -121,7 +121,7 @@ function Test-XamlNode {
             }
             else { Test-XamlValue $valueType $attribute.Value }
         }
-        if ($Node.LocalName -in @('Setter', 'Trigger') -and $Node.HasAttribute('Property')) {
+        if ($Node.LocalName -in @('Setter', 'Trigger', 'Condition') -and $Node.HasAttribute('Property')) {
             $ownerType = $TargetType
             if ($Node.HasAttribute('TargetName')) { $ownerType = $script:named[$Node.GetAttribute('TargetName')] }
             Assert-True ($null -ne $ownerType) 'A setter/trigger has no known target.'
