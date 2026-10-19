@@ -149,7 +149,8 @@ try {
             </ItemsControl.Style>
             <ItemsControl.Template>
                 <ControlTemplate TargetType="ItemsControl">
-                    <ScrollViewer Name="ResultsScroll" Focusable="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Name="ResultsScroll" Focusable="True" IsTabStop="True"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsPresenter/>
                     </ScrollViewer>
                 </ControlTemplate>

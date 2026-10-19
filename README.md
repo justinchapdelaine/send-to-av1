@@ -55,6 +55,8 @@ Use **Cancel** to stop the current encode and the rest of the batch. Incomplete 
 
 When encoding finishes, progress and timing fields are replaced by a completion heading and time taken. Result cards show each file's size comparison and output path; batches also show counts and total savings above the cards.
 
+For longer result lists, press **Tab** to focus the results area, then use the **Up/Down** or **Page Up/Page Down** keys to scroll. Result cards remain non-selectable.
+
 ## Encoding modes
 
 | Send to entry | Encoder | Best for | Resolution | Existing AV1 input |

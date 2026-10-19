@@ -100,13 +100,31 @@ public static class Av1ThemeResourceInspector {
     $results.ApplyTemplate() | Out-Null
     Assert-True ($results -is [Windows.Controls.ItemsControl] -and $results -isnot [Windows.Controls.Primitives.Selector]) 'Result cards still support selection.'
     $resultsScroll = $results.Template.FindName('ResultsScroll', $results)
-    Assert-True ($resultsScroll -is [Windows.Controls.ScrollViewer] -and -not $resultsScroll.Focusable -and
+    Assert-True ($resultsScroll -is [Windows.Controls.ScrollViewer] -and $resultsScroll.Focusable -and $resultsScroll.IsTabStop -and
         $resultsScroll.VerticalScrollBarVisibility -eq 'Auto' -and $resultsScroll.HorizontalScrollBarVisibility -eq 'Disabled') 'Informational result cards lost their scrolling behavior.'
     Assert-True ($results.Visibility -eq 'Collapsed') 'The empty results area is visible.'
     $results.Items.Add((Get-AV1ResultView ([PSCustomObject]@{
         Path = 'fixture.mkv'; Status = 'Completed'; Message = ''; InputBytes = 100; OutputBytes = 50; OutputPath = 'fixture_AV1.mkv'
     }))) | Out-Null
     Assert-True ($results.Visibility -eq 'Visible') 'Results did not appear after an item was added.'
+    # Fill the actual result template beyond its viewport and exercise the
+    # keyboard scrolling commands without showing a window or selecting cards.
+    for ($index = 1; $index -le 7; $index++) {
+        $results.Items.Add((Get-AV1ResultView ([PSCustomObject]@{
+            Path = ('fixture-{0}.mkv' -f $index); Status = 'Completed'; Message = ''
+            InputBytes = 100; OutputBytes = 50; OutputPath = ('fixture-{0}_AV1.mkv' -f $index)
+        }))) | Out-Null
+    }
+    $results.Measure([Windows.Size]::new(600, 220))
+    $results.Arrange([Windows.Rect]::new(0, 0, 600, 220))
+    $results.UpdateLayout()
+    Assert-True ($resultsScroll.ScrollableHeight -gt 0) 'The batch fixture has no scrollable results.'
+    [Windows.Input.ComponentCommands]::ScrollPageDown.Execute($null, $resultsScroll)
+    $results.UpdateLayout()
+    Assert-True ($resultsScroll.VerticalOffset -gt 0) 'The keyboard page-down command did not scroll the results.'
+    [Windows.Input.ComponentCommands]::ScrollPageUp.Execute($null, $resultsScroll)
+    $results.UpdateLayout()
+    Assert-True ($resultsScroll.VerticalOffset -eq 0) 'The keyboard page-up command did not return to the first result.'
     $results.Items.Clear()
     Assert-True ($results.Visibility -eq 'Collapsed') 'The empty results area did not collapse again.'
     # Drive the actual GUI event handlers against the real WPF controls without
