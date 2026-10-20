@@ -58,6 +58,25 @@ try {
                 <DataTrigger Binding="{Binding Color}" Value="#B91C1C"><Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/></DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="ResultIcon" TargetType="Path">
+            <Setter Property="Width" Value="16"/><Setter Property="Height" Value="16"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/><Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Stretch" Value="None"/>
+            <Setter Property="Stroke" Value="{DynamicResource MutedBrush}"/><Setter Property="StrokeThickness" Value="1.7"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/><Setter Property="StrokeEndLineCap" Value="Round"/>
+            <Setter Property="StrokeLineJoin" Value="Round"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="Data" Value="M 2,8 L 14,8 M 10,4 L 14,8 L 10,12"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Glyph}" Value="&#x2713;"><Setter Property="Data" Value="M 2,8 L 6,12 L 14,4"/></DataTrigger>
+                <DataTrigger Binding="{Binding Glyph}" Value="!"><Setter Property="Data" Value="M 8,3 L 8,9 M 8,12 L 8,13"/></DataTrigger>
+                <DataTrigger Binding="{Binding Glyph}" Value="&#x2715;"><Setter Property="Data" Value="M 4,4 L 12,12 M 12,4 L 4,12"/></DataTrigger>
+                <DataTrigger Binding="{Binding Glyph}" Value="&#x2014;"><Setter Property="Data" Value="M 2,8 L 14,8"/></DataTrigger>
+                <DataTrigger Binding="{Binding Color}" Value="#15803D"><Setter Property="Stroke" Value="{DynamicResource SuccessBrush}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Color}" Value="#B45309"><Setter Property="Stroke" Value="{DynamicResource WarningBrush}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Color}" Value="#B91C1C"><Setter Property="Stroke" Value="{DynamicResource ErrorBrush}"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="24">
@@ -121,22 +140,22 @@ try {
                     <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Glyph}" Style="{StaticResource ResultColor}" FontFamily="Segoe UI Symbol" FontSize="18"/>
-                            <StackPanel Grid.Column="1">
-                                <DockPanel>
-                                    <TextBlock Text="{Binding Status}" DockPanel.Dock="Right" FontSize="11" Margin="16,0,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource ResultColor}"><Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowStatus}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            </Style.Triggers></Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                </DockPanel>
-                                <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding PathText}" ToolTip="{Binding PathText}" Style="{StaticResource SecondaryText}"
-                                           Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <!-- Keep the icon centered on the filename row, independent of wrapped details below. -->
+                            <Path Name="ResultIcon" Style="{StaticResource ResultIcon}"/>
+                            <DockPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Status}" DockPanel.Dock="Right" FontSize="11" Margin="16,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource ResultColor}"><Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowStatus}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        </Style.Triggers></Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                            <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Description}" Foreground="{DynamicResource TextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding PathText}" ToolTip="{Binding PathText}" Style="{StaticResource SecondaryText}"
+                                       Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
                         </Grid>
                     </Border>
                 </DataTemplate>
