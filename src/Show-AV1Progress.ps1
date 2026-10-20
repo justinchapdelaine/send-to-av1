@@ -290,6 +290,14 @@ try {
                 if ($progress.Finalizing) { Set-Phase 'Finalizing output' }
                 else { Set-Phase 'Encoding' }
             }
+            'VerificationStarted' {
+                if ($state.Worker.Cancellation.IsCancellationRequested) { return }
+                Set-Phase 'Verifying output'
+                $controls.Progress.IsIndeterminate = $true
+                $controls.PercentLabel.Text = '...'
+                $controls.RemainingValue.Text = 'Checking output...'
+                $controls.RemainingValue.ToolTip = $null
+            }
             'FileResult' {
                 $state.CurrentFinished = $true
                 Add-Result $data

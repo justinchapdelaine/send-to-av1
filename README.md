@@ -12,6 +12,7 @@ Choose CPU encoding for quality and compression, NVIDIA encoding for speed, or S
 - See progress, elapsed time, and an estimated time remaining in a responsive window.
 - Compare input and output sizes when each file finishes.
 - Preserve audio tracks, subtitles, chapters, attachments, and metadata where supported.
+- Verify AV1 video, audio/subtitle stream counts, and duration before reporting success when FFprobe is available.
 - Cancel an encode while keeping completed outputs and original files.
 - Use setup and encoding windows that follow Windows' light/dark app preference and high-contrast settings.
 - Install for the current user without administrator rights.
@@ -20,7 +21,7 @@ Choose CPU encoding for quality and compression, NVIDIA encoding for speed, or S
 
 - A Windows desktop. The double-click setup launchers use built-in Windows PowerShell 5.1 and Windows Script Host. Encoding prefers PowerShell 7 when available on `PATH`, with Windows PowerShell 5.1 as the fallback.
 - A recent FFmpeg build with `libsvtav1` support for CPU and Small modes, or `av1_nvenc` support for NVIDIA mode. The installer can download portable tools for x64 or ARM64 Windows.
-- FFprobe is recommended for duration estimates and detection of existing AV1 video. The optional portable download includes both FFmpeg and FFprobe.
+- FFprobe is recommended for output verification, duration estimates, and detection of existing AV1 video. The optional portable download includes both FFmpeg and FFprobe.
 - For NVIDIA mode, a GPU and driver that support **AV1 encoding**.
 
 FFmpeg binaries are downloaded separately and are not included in this repository. Standard Windows desktop installations already include the .NET Framework compiler used to build the small launcher; no separate SDK is needed.
@@ -89,6 +90,8 @@ Recording_AV1_2.mkv   ← next output if the first name already exists
 ```
 
 MKV is the default because it supports a wide range of copied streams. Data and unknown streams, such as MOV timecode tracks, are omitted. Optional MP4 output is available through the command line, but incompatible copied streams can cause it to fail.
+
+Before assigning the final filename, FFprobe checks the encoded file's video codec, video/audio/subtitle counts, and reported duration against the source. Failed verification removes the temporary encode and reports an error. Without FFprobe, encoding still works with a warning that verification was skipped. These are metadata checks, not a full decode; see [output verification](docs/encoding.md#output-verification) for tolerances and limits.
 
 ## Command-line usage
 

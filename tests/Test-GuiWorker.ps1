@@ -88,6 +88,8 @@ try {
     $results = @($events | Where-Object { $_.Type -eq 'FileResult' })
     Assert-True ($results.Count -eq 1 -and $results[0].Data.Status -eq 'Completed') 'GUI worker did not deliver a completed-file result.'
     Assert-True (Test-Path -LiteralPath $results[0].Data.OutputPath) 'GUI received a nonexistent completed output.'
+    Assert-True (@($events | Where-Object { $_.Type -eq 'VerificationStarted' }).Count -eq 1 -and
+        @($events | Where-Object { $_.Type -eq 'InspectionStarted' -and $_.Data.Purpose -eq 'Output verification' }).Count -eq 1) 'The GUI worker lost the output verification stage.'
 
     # Already-AV1 and missing files must be explained without encoder activity.
     $worker = Start-AV1Worker @{ InputPath = @($results[0].Data.OutputPath, (Join-Path $tempRoot 'missing.mkv')) }

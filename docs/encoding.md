@@ -129,6 +129,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Download-FFmpeg.ps
 
 The downloader uses BtbN's GPL Windows builds, supports x64 and ARM64, chooses the native Windows architecture by default, installs only `ffmpeg.exe` and `ffprobe.exe` into `bin`, and prints whether the installed FFmpeg exposes `libsvtav1`, `av1_nvenc`, and NVIDIA HQ/UHQ tune support.
 
+## Output verification
+
+When FFprobe is available, Send to AV1 inspects the source before encoding and checks the temporary encoded file before assigning its final filename or reporting success. All video streams must be AV1, and video, audio, and subtitle stream counts must match the source. Reported durations must match within two seconds or 0.1% of the source duration, whichever is larger. The duration check accounts for nonzero Matroska start timestamps.
+
+If the source duration is unavailable, stream checks still run and a warning explains that duration could not be compared. If FFprobe is unavailable, encoding continues with a warning that output verification was skipped. The portable tool download includes FFprobe.
+
+The window shows **Verifying output** during the check. Verification queries have a 30-second timeout and can be cancelled. An unreadable output, stream mismatch, duration mismatch, or failed/timed-out verification is reported as a failed file, and its temporary encode is removed. The batch then continues with the next file unless cancelled. Originals and previously completed outputs are kept.
+
+Verification checks metadata, not every encoded frame or packet. It cannot guarantee a corruption-free file or equivalent visual quality, and does not compare attachment contents, metadata, or chapter values. Recovered decoder errors reported by FFmpeg remain warnings even when metadata checks pass.
+
 ## Encoding progress and diagnostics
 
 The Send to entries use a windowless launcher to open the Windows WPF window without a console flash. The current filename is the main heading, with a mode badge beside it and the batch position below. A blue progress bar and prominent percentage show encoding progress. Separate timing fields show an approximate remaining time (for example, "About 8 minutes"), elapsed time, and processed video time. Hover over the estimate for a precise timestamp. A background worker performs the encoding so the window remains responsive. Manual console use shows the corresponding text progress bar.

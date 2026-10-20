@@ -450,6 +450,79 @@ function Get-MediaDuration {
     return 0.0
 }
 
+function Get-MediaVerificationInfo {
+    param([string]$FfprobePath, [string]$Path, [string]$Purpose)
+
+    $query = Invoke-AV1ToolQuery -Executable $FfprobePath -Arguments @(
+        '-v', 'error', '-show_entries', 'format=duration,start_time,format_name:stream=codec_type,codec_name', '-of', 'json', $Path
+    ) -Purpose $Purpose
+    if ($query.ExitCode -ne 0) { throw ('{0} failed: {1}' -f $Purpose, $query.StandardError.Trim()) }
+    try {
+        $probe = $query.StandardOutput | ConvertFrom-Json -ErrorAction Stop
+        if ($null -eq $probe -or -not $probe.PSObject.Properties['streams'] -or @($probe.streams).Count -eq 0) {
+            throw 'No stream information was returned.'
+        }
+        # Unknown/data streams are not mapped into the output. Some have no
+        # reported type, so count only the media types we actually preserve.
+        $streams = @($probe.streams | Where-Object { $null -ne $_ -and $_.PSObject.Properties['codec_type'] })
+        $duration = 0.0
+        if ($probe.PSObject.Properties['format'] -and $null -ne $probe.format -and $probe.format.PSObject.Properties['duration']) {
+            $parsed = 0.0
+            if ([double]::TryParse([string]$probe.format.duration, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed) -and
+                $parsed -gt 0 -and -not [double]::IsInfinity($parsed)) { $duration = $parsed }
+            # Matroska reports the timeline's end when timestamps start above
+            # zero. Other demuxers, including MOV/MP4 and MPEG-TS, already report
+            # a duration; subtracting their start would shorten it incorrectly.
+            if ($probe.format.PSObject.Properties['format_name'] -and $probe.format.PSObject.Properties['start_time'] -and
+                $probe.format.format_name -match '(^|,)(matroska|webm)(,|$)') {
+                $start = 0.0
+                if ([double]::TryParse([string]$probe.format.start_time, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$start) -and
+                    $start -gt 0 -and $start -lt $duration) { $duration -= $start }
+            }
+        }
+        $video = @($streams | Where-Object { $_.codec_type -eq 'video' })
+        $codecs = @($video | ForEach-Object {
+            if ($_.PSObject.Properties['codec_name']) { [string]$_.codec_name } else { '' }
+        })
+        return [PSCustomObject]@{
+            VideoCount = $video.Count; VideoCodecs = $codecs
+            AudioCount = @($streams | Where-Object { $_.codec_type -eq 'audio' }).Count
+            SubtitleCount = @($streams | Where-Object { $_.codec_type -eq 'subtitle' }).Count
+            DurationSeconds = $duration
+        }
+    }
+    catch { throw ('{0} returned invalid media information: {1}' -f $Purpose, $_.Exception.Message) }
+}
+
+function Assert-AV1Output {
+    param([string]$FfprobePath, [string]$Path, [PSCustomObject]$Expected)
+
+    $actual = Get-MediaVerificationInfo -FfprobePath $FfprobePath -Path $Path -Purpose 'Output verification'
+    if ($actual.VideoCount -lt 1 -or @($actual.VideoCodecs | Where-Object { $_ -ne 'av1' }).Count -gt 0) {
+        throw 'Output verification failed: the output does not contain only AV1 video streams.'
+    }
+    foreach ($kind in @('Video', 'Audio', 'Subtitle')) {
+        $property = $kind + 'Count'
+        if ($actual.$property -ne $Expected.$property) {
+            throw ('Output verification failed: expected {0} {1} stream(s), found {2}.' -f $Expected.$property, $kind.ToLowerInvariant(), $actual.$property)
+        }
+    }
+    if ($Expected.DurationSeconds -gt 0) {
+        if ($actual.DurationSeconds -le 0) { throw 'Output verification failed: the output duration is unavailable.' }
+        # Allow muxer/timebase rounding and small encoder delays, but reject
+        # substantial truncation or an unexpectedly long result.
+        $tolerance = [Math]::Max(2.0, $Expected.DurationSeconds * 0.001)
+        if ([Math]::Abs($actual.DurationSeconds - $Expected.DurationSeconds) -gt $tolerance) {
+            throw ('Output verification failed: duration changed from {0:N2}s to {1:N2}s (allowed difference {2:N2}s).' -f
+                $Expected.DurationSeconds, $actual.DurationSeconds, $tolerance)
+        }
+    }
+    else {
+        Write-AV1Message 'Warning: Output stream checks passed, but the source duration was unavailable for comparison.' -ForegroundColor Yellow
+    }
+    Assert-AV1NotCancelled
+}
+
 function Format-ProgressTime {
     param([double]$Seconds)
 
@@ -798,6 +871,11 @@ function Convert-VideoToAv1 {
 
     Assert-AV1NotCancelled
     $duration = Get-MediaDuration -FfprobePath $FfprobePath -Path $resolvedInput
+    $verificationInfo = $null
+    if (-not [string]::IsNullOrWhiteSpace($FfprobePath)) {
+        $verificationInfo = Get-MediaVerificationInfo -FfprobePath $FfprobePath -Path $resolvedInput -Purpose 'Source verification inspection'
+        if ($verificationInfo.VideoCount -lt 1) { throw 'Source verification inspection did not find a video stream.' }
+    }
     $activity = 'Encoding file {0} of {1}: {2}' -f $FileNumber, $FileCount, $inputItem.Name
     $encodeReturned = $false
     try {
@@ -837,10 +915,28 @@ function Convert-VideoToAv1 {
         return
     }
 
-    # Cancellation after FFmpeg exits must also discard its unpublished output.
-    if ($null -ne $script:Cancellation -and $script:Cancellation.IsCancellationRequested) {
-        Remove-Item -LiteralPath $tempOutput -Force -ErrorAction SilentlyContinue
+    try {
         Assert-AV1NotCancelled
+        if ($null -ne $verificationInfo) {
+            Send-AV1Event -Type 'VerificationStarted'
+            Write-AV1Message 'Verifying output...'
+            if ($null -eq $script:EventSink) { Write-Progress -Id 1 -Activity $activity -Status 'Verifying output...' -PercentComplete 99 }
+            Assert-AV1Output -FfprobePath $FfprobePath -Path $tempOutput -Expected $verificationInfo
+            if ($verificationInfo.DurationSeconds -gt 0) { Write-AV1Message 'Output verification passed.' }
+        }
+        else {
+            Write-AV1Message 'Warning: Output verification was skipped because ffprobe is unavailable.' -ForegroundColor Yellow
+        }
+        Assert-AV1NotCancelled
+    }
+    catch {
+        # Failed verification or cancellation must never publish the temporary
+        # encode. Leave output-move failures below to their existing recovery path.
+        Remove-Item -LiteralPath $tempOutput -Force -ErrorAction SilentlyContinue
+        throw
+    }
+    finally {
+        if ($null -eq $script:EventSink) { Write-Progress -Id 1 -Activity $activity -Completed }
     }
     $completedOutput = Complete-OutputFile -TemporaryPath $tempOutput -OutputPath $finalOutput -InputFile $resolvedInput -Container $Container
     if ($completedOutput -ne $finalOutput) {

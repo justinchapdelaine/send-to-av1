@@ -209,6 +209,10 @@ public static class Av1ThemeResourceInspector {
         Set-AV1WindowTheme -Window $window -Theme Light
         $controls.Progress.ApplyTemplate() | Out-Null
         Assert-True ($null -ne $controls.Progress.Template.FindName('PART_Indicator', $controls.Progress)) 'The progress template has no indicator.'
+        Update-Window ([PSCustomObject]@{ Type = 'VerificationStarted'; Data = [PSCustomObject]@{} })
+        Assert-True ($controls.StatusLabel.Text -eq 'Verifying output' -and $controls.Progress.IsIndeterminate -and
+            $controls.RemainingValue.Text -eq 'Checking output...' -and $controls.PercentLabel.Text -ne '100%' -and
+            $controls.ActionButton.IsEnabled) 'Verification reports completion early or prevents cancellation.'
         Update-Window ([PSCustomObject]@{ Type = 'Message'; Data = [PSCustomObject]@{ Message = 'A normal update'; Color = 'Gray' } })
         Assert-True (-not $controls.DetailsExpander.IsExpanded) 'Normal operation opened troubleshooting details.'
         Update-Window ([PSCustomObject]@{ Type = 'FileResult'; Data = [PSCustomObject]@{

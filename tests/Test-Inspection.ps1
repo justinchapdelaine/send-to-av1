@@ -94,7 +94,7 @@ exit 7
     finally { $ErrorActionPreference = $old }
     if ($code -ne 0) { throw 'Could not create the inspection fixture.' }
     $sourceHash = (Get-FileHash -LiteralPath $source).Hash
-    $purposes = @('FFmpeg encoder check', 'Video codec inspection', 'Video duration inspection')
+    $purposes = @('FFmpeg encoder check', 'Video codec inspection', 'Video duration inspection', 'Source verification inspection')
     $encoderOutput = & $core { param($Tool) Get-FfmpegEncoderOutput -FfmpegPath $Tool } $ffmpeg
     if ($encoderOutput -match '(?m)^\s*[A-Z\.]+\s+av1_nvenc\s') { $purposes += 'NVIDIA capability check' }
     foreach ($purpose in $purposes) {
