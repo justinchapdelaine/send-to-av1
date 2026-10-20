@@ -40,15 +40,15 @@ function Assert-Rejected {
     Assert-True ($errorText -match $Pattern) ('Verification did not reject the fixture: ' + $errorText)
 }
 function Invoke-Case {
-    param([Threading.CancellationTokenSource]$Cancellation, [switch]$CancelVerification)
+    param([Threading.CancellationTokenSource]$Cancellation, [switch]$CancelVerification, [string]$InputFile = $source)
     $events = [Collections.Generic.List[object]]::new()
     $sink = {
         param($update)
         $events.Add($update)
         if ($CancelVerification -and $update.Type -eq 'InspectionStarted' -and $update.Data.Purpose -eq 'Output verification') { $Cancellation.Cancel() }
     }.GetNewClosure()
-    $inputs = @($source)
-    if ($CancelVerification) { $inputs += $source }
+    $inputs = @($InputFile)
+    if ($CancelVerification) { $inputs += $InputFile }
     $summary = Invoke-AV1Batch -InputPath $inputs -Small -Preset 12 -EventSink $sink -Cancellation $Cancellation
     return [PSCustomObject]@{ Summary = $summary; Events = $events.ToArray() }
 }
@@ -99,6 +99,31 @@ try {
     Invoke-Tool @('-v', 'error', '-i', $good, '-map', '0:v', '-map', '0:a', '-c', 'copy', '-t', '1', $short)
     $withoutSubtitle = $expected.PSObject.Copy(); $withoutSubtitle.SubtitleCount = 0
     Assert-Rejected $short $withoutSubtitle 'duration changed'
+    # A full audio/subtitle tail must not conceal a truncated video track.
+    $shortVideo = Join-Path $tempRoot 'short-video.mkv'
+    Invoke-Tool @('-v', 'error', '-i', $good, '-map', '0:v', '-c', 'copy', '-t', '1', $shortVideo)
+    $masked = Join-Path $tempRoot 'short-video-full-audio.mkv'
+    Invoke-Tool @('-v', 'error', '-i', $shortVideo, '-i', $good, '-map', '0:v', '-map', '1:a', '-map', '1:s', '-c', 'copy', $masked)
+    $maskedInfo = Get-Info $masked
+    Assert-True ([Math]::Abs($maskedInfo.DurationSeconds - $expected.DurationSeconds) -lt 0.2 -and
+        $maskedInfo.VideoDurationsSeconds[0] -lt 2) 'The truncated-video fixture does not preserve the full container duration.'
+    Assert-Rejected $masked $expected 'video stream 1 duration changed'
+    # A video intentionally shorter than its audio is valid when the source
+    # has that same timing; comparing video to container duration would fail it.
+    & $core { param($Tool, $Path, $Expected) Assert-AV1Output -FfprobePath $Tool -Path $Path -Expected $Expected } $ffprobe $masked $maskedInfo
+    $subtitleTail = Join-Path $tempRoot 'short-video-full-subtitles.mkv'
+    Invoke-Tool @('-v', 'error', '-i', $shortVideo, '-i', $good, '-map', '0:v', '-map', '1:s', '-c', 'copy', $subtitleTail)
+    $subtitleExpected = $expected.PSObject.Copy(); $subtitleExpected.AudioCount = 0
+    Assert-Rejected $subtitleTail $subtitleExpected 'video stream 1 duration changed'
+
+    # Every video is checked, including a shorter second track hidden behind
+    # the complete first track. The encoder preserves the mapped video order.
+    $multiSource = Join-Path $tempRoot 'two-videos.mkv'
+    Invoke-Tool @('-v', 'error', '-i', $good, '-map', '0:v', '-map', '0:v', '-map', '0:a', '-map', '0:s', '-c', 'copy', $multiSource)
+    $multiOutput = Join-Path $tempRoot 'short-second-video.mkv'
+    Invoke-Tool @('-v', 'error', '-i', $good, '-i', $shortVideo, '-map', '0:v', '-map', '1:v', '-map', '0:a', '-map', '0:s', '-c', 'copy', $multiOutput)
+    Assert-Rejected $multiOutput (Get-Info $multiSource) 'video stream 2 duration changed'
+
     $unreadable = Join-Path $tempRoot 'unreadable.mkv'
     'This is not a video.' | Set-Content -LiteralPath $unreadable
     Assert-Rejected $unreadable $expected 'Output verification failed'
@@ -109,13 +134,20 @@ try {
     Invoke-Tool @('-v', 'error', '-i', $source, '-map', '0', '-c', 'copy', '-output_ts_offset', '5', $offset)
     $offsetInfo = Get-Info $offset
     Assert-True ([Math]::Abs($offsetInfo.DurationSeconds - $expected.DurationSeconds) -lt 0.2) 'Shifted Matroska timestamps inflated the expected duration.'
+    Assert-True ([Math]::Abs($offsetInfo.VideoDurationsSeconds[0] - $expected.VideoDurationsSeconds[0]) -lt 0.2) 'Shifted Matroska video endpoints were treated as durations.'
     & $core { param($Tool, $Path, $Expected) Assert-AV1Output -FfprobePath $Tool -Path $Path -Expected $Expected } $ffprobe $good $offsetInfo
     $offsetMp4 = Join-Path $tempRoot 'offset.mp4'
     Invoke-Tool @('-v', 'error', '-i', $good, '-map', '0:v', '-map', '0:a', '-c', 'copy', '-output_ts_offset', '5', $offsetMp4)
     Assert-True ([Math]::Abs((Get-Info $offsetMp4).DurationSeconds - $expected.DurationSeconds) -lt 0.2) 'Shifted MP4 timestamps inflated the expected duration.'
+    Assert-True ([Math]::Abs((Get-Info $offsetMp4).VideoDurationsSeconds[0] - $expected.VideoDurationsSeconds[0]) -lt 0.2) 'MP4 video duration was incorrectly shortened by its start timestamp.'
     $offsetTs = Join-Path $tempRoot 'offset.ts'
     Invoke-Tool @('-v', 'error', '-i', $source, '-map', '0:v', '-c:v', 'mpeg2video', '-output_ts_offset', '5', $offsetTs)
     Assert-True ([Math]::Abs((Get-Info $offsetTs).DurationSeconds - 6) -lt 0.2) 'MPEG-TS duration was incorrectly shortened by its start timestamp.'
+    Assert-True ([Math]::Abs((Get-Info $offsetTs).VideoDurationsSeconds[0] - 6) -lt 0.2) 'MPEG-TS video duration was incorrectly shortened by its start timestamp.'
+    $longVideoDuration = & $core {
+        Get-VideoDurationSeconds -Stream ([PSCustomObject]@{ start_time = '5'; tags = [PSCustomObject]@{ DURATION = '27:00:05.123456789' } }) -IsMatroska $true
+    }
+    Assert-True ([Math]::Abs($longVideoDuration - 97200.123456789) -lt 0.000001) 'Long Matroska durations or nanosecond fractions were parsed incorrectly.'
     $unknownDuration = $expected.PSObject.Copy(); $unknownDuration.DurationSeconds = 0
     $warnings = [Collections.Generic.List[object]]::new()
     & $core {
@@ -147,6 +179,14 @@ try {
         Assert-True (@($run.Events | Where-Object { $_.Type -eq 'FileResult' -and $_.Data.Status -eq 'Failed' -and $_.Data.Message -match 'audio' }).Count -eq 1) 'Verification failure details were lost.'
         Assert-True (@(Get-ChildItem -LiteralPath $tempRoot -Filter '*_AV1*.mkv').Count -eq 1 -and
             @(Get-ChildItem -LiteralPath $tempRoot -Filter '*.tmp.*').Count -eq 0) 'Failed verification published or retained a temporary encode.'
+        foreach ($case in @(@{ Fixture = $masked; Source = $source; Stream = 1 }, @{ Fixture = $multiOutput; Source = $multiSource; Stream = 2 })) {
+            & $core { param($Fixture) $script:VerificationFixture = $Fixture } $case.Fixture
+            $run = Invoke-Case -InputFile $case.Source
+            Assert-True ($run.Summary.Failed -eq 1 -and $run.Summary.Processed -eq 0 -and
+                @($run.Events | Where-Object { $_.Type -eq 'FileResult' -and $_.Data.Message -match ('video stream {0} duration changed' -f $case.Stream) }).Count -eq 1) 'Truncated video was published or its failure details were lost.'
+            Assert-True (@(Get-ChildItem -LiteralPath $tempRoot -Filter '*_AV1*.mkv').Count -eq 1 -and
+                @(Get-ChildItem -LiteralPath $tempRoot -Filter '*.tmp.*').Count -eq 0) 'A video-duration failure published or retained the temporary encode.'
+        }
         & $core { param($Fixture) $script:VerificationFixture = $Fixture } $good
         $cancellation = [Threading.CancellationTokenSource]::new()
         try {
@@ -185,6 +225,38 @@ try {
         Assert-True (@(Get-ChildItem -LiteralPath $tempRoot -Filter '*_AV1*.mkv').Count -eq 1 -and
             @(Get-ChildItem -LiteralPath $tempRoot -Filter '*.tmp.*').Count -eq 0) 'Verification timeout published or retained a temporary encode.'
 
+        foreach ($missingTiming in @('Output verification', 'Source media inspection')) {
+            & $core {
+                param($Query, $PurposeToChange)
+                $script:VerificationQuery = $Query
+                $script:MissingVideoTimingPurpose = $PurposeToChange
+                function script:Invoke-AV1ToolQuery {
+                    param($Executable, $Arguments, $Purpose, $TimeoutSeconds = 30)
+                    $result = & $script:VerificationQuery -Executable $Executable -Arguments $Arguments -Purpose $Purpose -TimeoutSeconds $TimeoutSeconds
+                    if ($Purpose -eq $script:MissingVideoTimingPurpose) {
+                        $metadata = $result.StandardOutput | ConvertFrom-Json
+                        foreach ($stream in @($metadata.streams | Where-Object codec_type -eq video)) {
+                            $stream.PSObject.Properties.Remove('duration')
+                            if ($stream.PSObject.Properties['tags']) { $stream.tags.PSObject.Properties.Remove('DURATION') }
+                        }
+                        $result.StandardOutput = $metadata | ConvertTo-Json -Depth 10
+                    }
+                    return $result
+                }
+            } $originalQuery $missingTiming
+            $run = Invoke-Case
+            if ($missingTiming -eq 'Output verification') {
+                Assert-True ($run.Summary.Failed -eq 1 -and $run.Summary.Processed -eq 0 -and
+                    @($run.Events | Where-Object { $_.Type -eq 'FileResult' -and $_.Data.Message -match 'video stream 1 duration is unavailable' }).Count -eq 1) 'Missing output video duration bypassed verification.'
+                Assert-True (@(Get-ChildItem -LiteralPath $tempRoot -Filter '*_AV1*.mkv').Count -eq 1 -and
+                    @(Get-ChildItem -LiteralPath $tempRoot -Filter '*.tmp.*').Count -eq 0) 'Missing video timing published or retained a temporary encode.'
+            }
+            else {
+                Assert-True ($run.Summary.Processed -eq 1 -and $run.Summary.Failed -eq 0 -and
+                    @($run.Events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Color -eq 'Yellow' -and $_.Data.Message -match 'Video duration comparison was unavailable' }).Count -eq 1) 'Missing source video timing was not explained.'
+                Assert-True (@($run.Events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Message -eq 'Output verification passed.' }).Count -eq 0) 'Unavailable video timing was presented as full verification.'
+            }
+        }
         & $core {
             param($Query)
             $script:VerificationQuery = $Query

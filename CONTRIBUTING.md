@@ -54,7 +54,7 @@ Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC e
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-SmallMode.ps1
 ```
 
-Check output verification with FFmpeg/SVT-AV1 and FFprobe. These checks use real multi-track clips and malformed/shortened outputs, exercise shifted Matroska, MP4, and MPEG-TS timestamps, and ensure failed or cancelled verification cannot publish a file. They also check that a single source inspection supplies both progress and verification metadata, along with verification timeouts, unknown source duration, and the existing no-FFprobe fallback:
+Check output verification with FFmpeg/SVT-AV1 and FFprobe. These checks use real multi-track clips and malformed/shortened outputs, including truncated video hidden by longer audio, subtitles, or another video track. They exercise shifted Matroska, MP4, and MPEG-TS timestamps and ensure failed or cancelled verification cannot publish a file. They also check that a single source inspection supplies both progress and verification metadata, along with verification timeouts, unknown source duration, and the existing no-FFprobe fallback:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-OutputVerification.ps1

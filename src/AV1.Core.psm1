@@ -396,11 +396,42 @@ function Get-SourceMediaInfo {
     catch { return $null }
 }
 
+function Get-VideoDurationSeconds {
+    param($Stream, [bool]$IsMatroska)
+
+    $duration = 0.0
+    $style = [Globalization.NumberStyles]::Float
+    $culture = [Globalization.CultureInfo]::InvariantCulture
+    # Stream durations (for example, MP4/MPEG-TS) already describe a span.
+    if ($Stream.PSObject.Properties['duration'] -and
+        [double]::TryParse([string]$Stream.duration, $style, $culture, [ref]$duration) -and
+        $duration -gt 0 -and -not [double]::IsInfinity($duration)) { return $duration }
+
+    # Matroska usually exposes a DURATION tag instead. FFmpeg writes that tag
+    # as an endpoint, so subtract this video's start, not the container's start.
+    if ($IsMatroska -and $Stream.PSObject.Properties['tags'] -and $null -ne $Stream.tags -and
+        $Stream.tags.PSObject.Properties['DURATION'] -and $Stream.PSObject.Properties['start_time']) {
+        $start = 0.0
+        $hours = 0.0
+        $seconds = 0.0
+        $tag = [string]$Stream.tags.DURATION
+        if ([double]::TryParse([string]$Stream.start_time, $style, $culture, [ref]$start) -and
+            -not [double]::IsNaN($start) -and -not [double]::IsInfinity($start) -and
+            $tag -match '^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$' -and
+            [double]::TryParse($Matches[1], $style, $culture, [ref]$hours) -and
+            [double]::TryParse($Matches[3], $style, $culture, [ref]$seconds)) {
+            $duration = $hours * 3600.0 + [int]$Matches[2] * 60.0 + $seconds - $start
+            if ($duration -gt 0 -and -not [double]::IsInfinity($duration)) { return $duration }
+        }
+    }
+    return 0.0
+}
+
 function Get-MediaInfo {
     param([string]$FfprobePath, [string]$Path, [string]$Purpose)
 
     $query = Invoke-AV1ToolQuery -Executable $FfprobePath -Arguments @(
-        '-v', 'error', '-show_entries', 'format=duration,start_time,format_name:stream=codec_type,codec_name', '-of', 'json', $Path
+        '-v', 'error', '-show_entries', 'format=duration,start_time,format_name:stream=codec_type,codec_name,start_time,duration:stream_tags=DURATION', '-of', 'json', $Path
     ) -Purpose $Purpose
     if ($query.ExitCode -ne 0) { throw ('{0} failed: {1}' -f $Purpose, $query.StandardError.Trim()) }
     try {
@@ -411,6 +442,8 @@ function Get-MediaInfo {
         # Unknown/data streams are not mapped into the output. Some have no
         # reported type, so count only the media types we actually preserve.
         $streams = @($probe.streams | Where-Object { $null -ne $_ -and $_.PSObject.Properties['codec_type'] })
+        $isMatroska = $probe.PSObject.Properties['format'] -and $null -ne $probe.format -and
+            $probe.format.PSObject.Properties['format_name'] -and $probe.format.format_name -match '(^|,)(matroska|webm)(,|$)'
         $duration = 0.0
         if ($probe.PSObject.Properties['format'] -and $null -ne $probe.format -and $probe.format.PSObject.Properties['duration']) {
             $parsed = 0.0
@@ -419,8 +452,7 @@ function Get-MediaInfo {
             # Matroska reports the timeline's end when timestamps start above
             # zero. Other demuxers, including MOV/MP4 and MPEG-TS, already report
             # a duration; subtracting their start would shorten it incorrectly.
-            if ($probe.format.PSObject.Properties['format_name'] -and $probe.format.PSObject.Properties['start_time'] -and
-                $probe.format.format_name -match '(^|,)(matroska|webm)(,|$)') {
+            if ($isMatroska -and $probe.format.PSObject.Properties['start_time']) {
                 $start = 0.0
                 if ([double]::TryParse([string]$probe.format.start_time, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$start) -and
                     $start -gt 0 -and $start -lt $duration) { $duration -= $start }
@@ -432,6 +464,7 @@ function Get-MediaInfo {
         })
         return [PSCustomObject]@{
             VideoCount = $video.Count; VideoCodecs = $codecs
+            VideoDurationsSeconds = @($video | ForEach-Object { Get-VideoDurationSeconds -Stream $_ -IsMatroska $isMatroska })
             AudioCount = @($streams | Where-Object { $_.codec_type -eq 'audio' }).Count
             SubtitleCount = @($streams | Where-Object { $_.codec_type -eq 'subtitle' }).Count
             DurationSeconds = $duration
@@ -464,7 +497,24 @@ function Assert-AV1Output {
         }
     }
     else {
-        Write-AV1Message 'Warning: Output stream checks passed, but the source duration was unavailable for comparison.' -ForegroundColor Yellow
+        Write-AV1Message 'Warning: The source duration was unavailable for container comparison.' -ForegroundColor Yellow
+    }
+    $unknownVideoDurations = 0
+    for ($index = 0; $index -lt $Expected.VideoCount; $index++) {
+        $expectedDuration = $Expected.VideoDurationsSeconds[$index]
+        $actualDuration = $actual.VideoDurationsSeconds[$index]
+        if ($expectedDuration -le 0) { $unknownVideoDurations++; continue }
+        if ($actualDuration -le 0) {
+            throw ('Output verification failed: video stream {0} duration is unavailable.' -f ($index + 1))
+        }
+        $tolerance = [Math]::Max(2.0, $expectedDuration * 0.001)
+        if ([Math]::Abs($actualDuration - $expectedDuration) -gt $tolerance) {
+            throw ('Output verification failed: video stream {0} duration changed from {1:N2}s to {2:N2}s (allowed difference {3:N2}s).' -f
+                ($index + 1), $expectedDuration, $actualDuration, $tolerance)
+        }
+    }
+    if ($unknownVideoDurations -gt 0) {
+        Write-AV1Message ('Warning: Video duration comparison was unavailable for {0} source video stream(s). Other metadata checks passed.' -f $unknownVideoDurations) -ForegroundColor Yellow
     }
     Assert-AV1NotCancelled
 }
@@ -871,7 +921,9 @@ function Convert-VideoToAv1 {
             Write-AV1Message 'Verifying output...'
             if ($null -eq $script:EventSink) { Write-Progress -Id 1 -Activity $activity -Status 'Verifying output...' -PercentComplete 99 }
             Assert-AV1Output -FfprobePath $FfprobePath -Path $tempOutput -Expected $sourceInfo
-            if ($sourceInfo.DurationSeconds -gt 0) { Write-AV1Message 'Output verification passed.' }
+            if ($sourceInfo.DurationSeconds -gt 0 -and @($sourceInfo.VideoDurationsSeconds | Where-Object { $_ -le 0 }).Count -eq 0) {
+                Write-AV1Message 'Output verification passed.'
+            }
         }
         else {
             Write-AV1Message 'Warning: Output verification was skipped because ffprobe is unavailable.' -ForegroundColor Yellow

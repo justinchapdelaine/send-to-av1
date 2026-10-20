@@ -91,7 +91,7 @@ Recording_AV1_2.mkv   ← next output if the first name already exists
 
 MKV is the default because it supports a wide range of copied streams. Data and unknown streams, such as MOV timecode tracks, are omitted. Optional MP4 output is available through the command line, but incompatible copied streams can cause it to fail.
 
-Before assigning the final filename, FFprobe checks the encoded file's video codec, video/audio/subtitle counts, and reported duration against the source. Failed verification removes the temporary encode and reports an error. Without FFprobe, encoding still works with a warning that verification was skipped. These are metadata checks, not a full decode; see [output verification](docs/encoding.md#output-verification) for tolerances and limits.
+Before assigning the final filename, FFprobe checks the encoded file's video codec, video/audio/subtitle counts, overall duration, and each video's duration against the source. Failed verification removes the temporary encode and reports an error. Without FFprobe, encoding still works with a warning that verification was skipped. These are metadata checks, not a full decode; see [output verification](docs/encoding.md#output-verification) for tolerances and limits.
 
 ## Command-line usage
 
