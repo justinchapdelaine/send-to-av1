@@ -30,11 +30,7 @@ try {
     <Window.Resources/>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="24">
-            <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                <ContentControl Name="OutcomeIcon" Style="{StaticResource CompletionIcon}" Visibility="Collapsed"/>
-                <TextBlock Name="Heading" Grid.Column="1" Text="Install Send to AV1" Style="{StaticResource HeadingText}"/>
-            </Grid>
+            <TextBlock Name="Heading" Text="Install Send to AV1" Style="{StaticResource HeadingText}"/>
             <TextBlock Name="Description" Margin="0,8,0,0" TextWrapping="Wrap"
                        Text="Add CPU, NVIDIA, and Small encoding to your Send to menu. No administrator rights are needed."/>
             <TextBlock Name="CompactLocation" Visibility="Collapsed" Margin="0,8,0,0" Style="{StaticResource SecondaryText}"/>
@@ -75,7 +71,7 @@ try {
     finally { $reader.Close() }
     $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
-    foreach ($name in @('Heading', 'OutcomeIcon', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
+    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
             'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionsPanel', 'ActionButton', 'CloseButton')) {
         $controls[$name] = $window.FindName($name)
     }
@@ -158,8 +154,6 @@ try {
             }
         }
         $controls.Heading.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $color)
-        $controls.OutcomeIcon.Tag = $color
-        $controls.OutcomeIcon.Visibility = 'Visible'
         if (-not $state.Finished) {
             $controls.DownloadOptions.Visibility = 'Collapsed'
             if (-not $Uninstall) { $controls.DownloadOptions.Visibility = 'Visible' }
@@ -181,7 +175,6 @@ try {
         $controls.DownloadOptions.Visibility = 'Collapsed'
         $controls.LocationCard.Visibility = 'Collapsed'
         $controls.CompactLocation.Visibility = 'Visible'
-        $controls.OutcomeIcon.Visibility = 'Collapsed'
         $controls.Heading.Text = 'Installing Send to AV1'
         if ($Uninstall) { $controls.Heading.Text = 'Removing Send to entries' }
         $controls.Heading.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'TextBrush')

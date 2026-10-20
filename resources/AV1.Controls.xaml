@@ -75,40 +75,6 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="CompletionIcon" TargetType="ContentControl">
-            <!-- ContentControl and Path add no automation peer; the heading supplies the status. -->
-            <Setter Property="Width" Value="24"/>
-            <Setter Property="Height" Value="24"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="IsTabStop" Value="False"/>
-            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContentControl">
-                        <Path Name="OutcomeGlyph" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"
-                              Data="M 18,10 A 8,8 0 1 1 2,10 A 8,8 0 1 1 18,10 M 6,10 L 14,10"
-                              Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8" Stretch="None"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Tag" Value="SuccessBrush">
-                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
-                                <Setter TargetName="OutcomeGlyph" Property="Data" Value="M 4,10 L 8,14 L 16,6"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="WarningBrush">
-                                <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
-                                <Setter TargetName="OutcomeGlyph" Property="Data" Value="M 10,2 L 19,18 L 1,18 Z M 10,7 L 10,11 M 10,14 L 10,15"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="ErrorBrush">
-                                <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
-                                <Setter TargetName="OutcomeGlyph" Property="Data" Value="M 18,10 A 8,8 0 1 1 2,10 A 8,8 0 1 1 18,10 M 7,7 L 13,13 M 13,7 L 7,13"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>

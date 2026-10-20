@@ -17,7 +17,7 @@ Run commands below from the project folder. Use temporary clips for encoding che
 | `src/AV1.ViewModel.psm1` | Time estimates and result formatting |
 | `src/AV1.Theme.psm1` | Windows theme detection, palettes, and window color resources |
 | `src/AV1.Xaml.psm1` | Include shared WPF control styles before loading a window |
-| `resources/AV1.Controls.xaml` | Shared typography, progress, Details, outcome icons, buttons, checkbox, and tooltips |
+| `resources/AV1.Controls.xaml` | Shared typography, progress, Details, buttons, checkbox, and tooltips |
 | `src/Show-AV1Setup.ps1` | Themed installer and uninstaller window |
 | `src/AV1.Setup.psm1` | Setup orchestration, background runspace, and result queue |
 | `Install-SendTo.vbs`, `Uninstall-SendTo.vbs` | Hidden setup-window launchers using built-in Windows PowerShell |
@@ -132,7 +132,7 @@ Check the download checkbox in light, dark, and high-contrast themes. Its checke
 
 In the installer, uninstaller, and encoding window, check the shared Details header: the chevron points right when collapsed and down when expanded, clicking either the arrow or label toggles the content, and Tab/Space works with a visible focus ring. Confirm hover feedback and theme changes remain readable and collapsed Details reserves no content area.
 
-Compare all three windows for consistent heading and secondary text, section spacing, rounded progress tracks, and indeterminate pulse animation. Expanded Details should have a padded, rounded surface with selectable read-only text, working keyboard/mouse scrolling, and a visible focus border. Check completion icons for success, warnings, errors, and cancelled/no-output encodes in light, dark, and high-contrast themes; setup retries must hide the previous icon. Icons are decorative and the heading must still identify the outcome for screen readers.
+Compare all three windows for consistent heading and secondary text, section spacing, rounded progress tracks, and indeterminate pulse animation. Expanded Details should have a padded, rounded surface with selectable read-only text, working keyboard/mouse scrolling, and a visible focus border. Headings should identify the outcome in words and use the appropriate status color, without a separate heading icon. Check success, warnings, errors, and cancelled/no-output encodes in light, dark, and high-contrast themes; setup retries must restore the normal heading color. Per-file result cards should retain their distinct status icons.
 
 Before release, verify on an interactive Windows desktop that all three Send to entries open a compact window without a console flash; multi-file selections (including spaces and Unicode paths) arrive intact; progress remains responsive; the results area appears when needed; warnings and errors are visible; Cancel and closing an active window clean up; and completed results and output-folder navigation work. Verify NVIDIA encoding on supported hardware. The Windows integration test does not automate these Explorer and interactive window behaviors.
 

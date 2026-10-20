@@ -69,11 +69,8 @@ try {
         </Grid.RowDefinitions>
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <DockPanel Margin="0,0,16,0">
-                <ContentControl Name="OutcomeIcon" DockPanel.Dock="Left" Style="{StaticResource CompletionIcon}" Visibility="Collapsed"/>
-                <TextBlock Name="FileLabel" Text="Preparing your videos..." Style="{StaticResource HeadingText}" TextWrapping="NoWrap"
-                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-            </DockPanel>
+            <TextBlock Name="FileLabel" Text="Preparing your videos..." Style="{StaticResource HeadingText}" TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,16,0"/>
             <Border Grid.Column="1" Background="{DynamicResource BadgeBrush}" CornerRadius="10" Padding="8,4" VerticalAlignment="Center">
                 <TextBlock Name="ModeLabel" Foreground="{DynamicResource BadgeTextBrush}" FontSize="12" FontWeight="SemiBold"/>
             </Border>
@@ -171,7 +168,7 @@ try {
     finally { $reader.Close() }
     $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'OutcomeIcon', 'Progress', 'PercentLabel',
+    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
             'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
@@ -355,8 +352,6 @@ try {
         $controls.FileLabel.Text = $view.Title
         $controls.FileLabel.ToolTip = $null
         $controls.FileLabel.SetResourceReference([Windows.Controls.Control]::ForegroundProperty, (Get-AV1StatusBrushKey $view.Color))
-        $controls.OutcomeIcon.Tag = Get-AV1StatusBrushKey $view.Color
-        $controls.OutcomeIcon.Visibility = 'Visible'
         $controls.BatchLabel.Text = $view.Subtitle
         $controls.SummaryLabel.Text = $view.BatchSummary
         $controls.TimeLabel.Text = $view.Notice

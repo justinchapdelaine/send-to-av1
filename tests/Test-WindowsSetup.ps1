@@ -34,14 +34,14 @@ try {
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
     $controls = @{}
-    foreach ($name in @('Heading', 'OutcomeIcon', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
+    foreach ($name in @('Heading', 'Description', 'Location', 'LocationHint', 'LocationCard', 'CompactLocation', 'DownloadOptions', 'DownloadTools',
             'ProgressPanel', 'Phase', 'Progress', 'Notice', 'DetailsExpander', 'Details', 'ActionsPanel', 'ActionButton', 'CloseButton')) {
         $controls[$name] = $window.FindName($name)
         Assert-True ($null -ne $controls[$name]) ('Missing setup control: ' + $name)
     }
     Assert-True ($controls.ProgressPanel.Visibility -eq 'Collapsed' -and $controls.DetailsExpander.Visibility -eq 'Collapsed') 'Idle setup exposes empty progress or details.'
     Assert-True ($controls.DownloadTools.IsChecked -and $controls.ActionButton.IsEnabled) 'The initial installation choices are unavailable.'
-    Assert-True ($controls.OutcomeIcon.Visibility -eq 'Collapsed') 'Idle setup shows a completion icon.'
+    Assert-True ($null -eq $window.FindName('OutcomeIcon')) 'Setup retains a redundant heading icon.'
     Assert-True ($controls.Heading.Style -eq $window.FindResource('HeadingText') -and
         $controls.Progress.Style -eq $window.FindResource('SharedProgressBar') -and
         $controls.Details.Style -eq $window.FindResource('DetailsLog')) 'Setup bypasses shared typography, progress, or Details styling.'
@@ -60,8 +60,6 @@ try {
     $controls.Details.Clear()
     $controls.Progress.ApplyTemplate() | Out-Null
     Assert-True ($null -ne $controls.Progress.Template.FindName('PART_Indicator', $controls.Progress)) 'Setup lost its shared progress indicator.'
-    $controls.OutcomeIcon.ApplyTemplate() | Out-Null
-    $outcomeGlyph = $controls.OutcomeIcon.Template.FindName('OutcomeGlyph', $controls.OutcomeIcon)
     Assert-True ($controls.LocationCard.Visibility -eq 'Visible' -and $controls.DownloadOptions.Visibility -eq 'Visible' -and
         $controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.CompactLocation.Visibility -eq 'Collapsed') 'Idle setup lost its folder, choices, or actions.'
     $controls.ActionButton.ApplyTemplate() | Out-Null
@@ -96,14 +94,6 @@ try {
         $controls.ActionButton.IsEnabled = $false
         Assert-True ($controls.ActionButton.Background.Color -eq $window.Resources['DisabledBrush'].Color) 'Disabled setup buttons did not follow the theme.'
         $controls.ActionButton.IsEnabled = $true
-
-        $iconShapes = @()
-        foreach ($key in @('SuccessBrush', 'WarningBrush', 'ErrorBrush', 'MutedBrush')) {
-            $controls.OutcomeIcon.Tag = $key
-            Assert-True ($outcomeGlyph.Stroke.Color -eq $window.Resources[$key].Color) ('The outcome icon ignored its theme/state: ' + $theme + '/' + $key)
-            $iconShapes += $outcomeGlyph.Data.ToString()
-        }
-        Assert-True (@($iconShapes | Select-Object -Unique).Count -eq 4) 'Outcome icons rely on color without distinct shapes.'
 
         $expander.IsExpanded = $false
         $window.Dispatcher.Invoke([Action]{}, [Windows.Threading.DispatcherPriority]::DataBind)
@@ -176,7 +166,6 @@ try {
     Finish-SetupWindow
     Assert-True (-not $state.Running -and -not $state.Finished -and $controls.ActionButton.Content -eq 'Try again') 'A warning cannot be retried.'
     Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.Heading.Foreground.Color -eq $window.Resources['WarningBrush'].Color) 'Setup hid a warning or lost its semantic color.'
-    Assert-True ($controls.OutcomeIcon.Visibility -eq 'Visible' -and $controls.OutcomeIcon.Tag -eq 'WarningBrush') 'Setup warning lost its outcome icon.'
     Assert-True ($controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.Description.Visibility -eq 'Visible' -and
         $controls.DownloadOptions.Visibility -eq 'Visible' -and $controls.DownloadTools.IsEnabled -and
         $controls.CloseButton.Visibility -eq 'Visible' -and $controls.Notice.Visibility -eq 'Collapsed') 'A warning did not restore the download choice and closing/retry actions.'
@@ -185,11 +174,10 @@ try {
     $timer.Stop()
     Assert-True ($state.Running -and $script:lastWorkerOptions.DownloadTools -and
         $controls.Details.Text -eq '' -and -not $controls.DetailsExpander.IsExpanded -and
-        $controls.DownloadOptions.Visibility -eq 'Collapsed' -and $controls.OutcomeIcon.Visibility -eq 'Collapsed') 'Retry ignored a changed choice or retained the previous outcome.'
+        $controls.DownloadOptions.Visibility -eq 'Collapsed' -and $controls.Heading.Foreground.Color -eq $window.Resources['TextBrush'].Color) 'Retry ignored a changed choice or retained the previous outcome.'
     $state.Result = [PSCustomObject]@{ Status = 'Failed'; Message = 'Test setup failure' }
     Finish-SetupWindow
     Assert-True ($controls.Description.Text -eq 'Test setup failure' -and $controls.Heading.Foreground.Color -eq $window.Resources['ErrorBrush'].Color) 'Setup failure was hidden.'
-    Assert-True ($controls.OutcomeIcon.Tag -eq 'ErrorBrush') 'Setup failure shows the wrong outcome icon.'
     $state.Result = [PSCustomObject]@{ Status = 'Completed'; Message = 'Installed.' }
     Finish-SetupWindow
     Assert-True ($state.Finished -and $controls.Heading.Text -eq 'Installation complete' -and $controls.ActionButton.Content -eq 'Close') 'Install completion did not enable closing.'
@@ -198,8 +186,7 @@ try {
         $controls.ActionsPanel.Visibility -eq 'Visible' -and $controls.CloseButton.Visibility -eq 'Collapsed' -and
         $controls.Notice.Visibility -eq 'Collapsed') 'Completed setup did not reduce to its result and primary Close action.'
     Set-AV1WindowTheme -Window $window -Theme Dark
-    Assert-True ($controls.Heading.Foreground.Color -eq $window.Resources['SuccessBrush'].Color -and
-        $controls.OutcomeIcon.Tag -eq 'SuccessBrush' -and $outcomeGlyph.Stroke.Color -eq $window.Resources['SuccessBrush'].Color) 'Changing themes lost the completion color or icon.'
+    Assert-True ($controls.Heading.Foreground.Color -eq $window.Resources['SuccessBrush'].Color) 'Changing themes lost the completion heading color.'
     $Uninstall = $true
     $operation = 'Uninstall'
     Start-Setup
