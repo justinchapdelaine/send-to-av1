@@ -89,13 +89,21 @@ public static class Av1ThemeResourceInspector {
     try { $window = [Windows.Markup.XamlReader]::Load($reader) }
     finally { $reader.Close() }
     Set-AV1WindowTheme -Window $window -Theme Light
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+    foreach ($name in @('FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
-            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
+            'BatchLabel', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
         Assert-True ($null -ne $window.FindName($name)) ('Missing WPF control: ' + $name)
     }
     Assert-True ($window.SizeToContent -eq 'Height') 'The window reserves a fixed height.'
+    $fileLabel = $window.FindName('FileLabel')
+    $percentLabel = $window.FindName('PercentLabel')
+    $progressPanel = $window.FindName('ProgressPanel')
+    Assert-True ($percentLabel.Parent -eq $fileLabel.Parent -and [Windows.Controls.Grid]::GetColumn($percentLabel) -eq 1) 'The percentage is not beside the filename.'
+    Assert-True ($progressPanel.ColumnDefinitions.Count -eq 0 -and $progressPanel.Children.Count -eq 1 -and
+        $window.FindName('Progress').Parent -eq $progressPanel) 'The progress bar still shares its width with another element.'
+    Assert-True ($null -eq $window.FindName('ModeLabel') -and $null -eq $window.FindName('StatusLabel') -and
+        $null -eq $window.FindName('StatusDot')) 'The header retains separate mode or status decorations.'
     $results = $window.FindName('Results')
     $results.ApplyTemplate() | Out-Null
     Assert-True ($results -is [Windows.Controls.ItemsControl] -and $results -isnot [Windows.Controls.Primitives.Selector]) 'Result cards still support selection.'
@@ -130,9 +138,9 @@ public static class Av1ThemeResourceInspector {
     # Drive the actual GUI event handlers against the real WPF controls without
     # launching an encode, so binding/template and error-display failures surface.
     $controls = @{}
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+    foreach ($name in @('FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
-            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
+            'BatchLabel', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
         $controls[$name] = $window.FindName($name)
     }
@@ -195,7 +203,9 @@ public static class Av1ThemeResourceInspector {
     try {
         $state = @{ Worker = [PSCustomObject]@{ Cancellation = $cancellation }; LastProgress = $null; HasWarnings = $false
             Clock = [Diagnostics.Stopwatch]::StartNew(); Running = $true; Summary = $null; Fatal = $false
-            FileCount = 1; CurrentPath = 'fixture.mkv'; CurrentFinished = $true }
+            FileCount = 1; Mode = 'Small'; BatchPosition = 'Selected videos'; CurrentPath = 'fixture.mkv'; CurrentFinished = $true }
+        Update-Window ([PSCustomObject]@{ Type = 'FileStarted'; Data = [PSCustomObject]@{ Path = 'fixture.mkv'; FileNumber = 1; FileCount = 1 } })
+        Assert-True ($controls.BatchLabel.Text -eq ('File 1 of 1 {0} Small {0} Inspecting video' -f [char]0xb7)) 'The subtitle lost the file position, mode, or inspection phase.'
         $progress = [PSCustomObject]@{
             Percent = 25; SecondsRemaining = 480; Finalizing = $false
             DurationSeconds = 1200; ProcessedSeconds = 300; ElapsedSeconds = 160; Status = 'Precise progress'
@@ -203,6 +213,13 @@ public static class Av1ThemeResourceInspector {
         Update-Window ([PSCustomObject]@{ Type = 'Progress'; Data = [PSCustomObject]@{ Progress = $progress } })
         Assert-True ($controls.RemainingValue.Text -eq 'About 8 minutes' -and $controls.PercentLabel.Text -eq '25%') 'The timing and percentage controls did not update.'
         Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FF2563EB') 'Encoding progress did not use the blue accent.'
+        Assert-True ($controls.BatchLabel.Text -eq ('File 1 of 1 {0} Small {0} Encoding' -f [char]0xb7) -and
+            $controls.BatchLabel.Foreground.Color -eq $window.Resources['MutedBrush'].Color) 'The processing context is missing or visually competes with progress.'
+        foreach ($mode in @('CPU', 'NVIDIA', 'Small')) {
+            $state.Mode = $mode
+            Set-Phase 'Finalizing output'
+            Assert-True ($controls.BatchLabel.Text -eq ('File 1 of 1 {0} {1} {0} Finalizing output' -f [char]0xb7, $mode)) 'A mode or finalization phase was lost in the subtitle.'
+        }
         Set-AV1WindowTheme -Window $window -Theme Dark
         Assert-True ($window.Background.Color.ToString() -eq '#FF111827' -and $controls.Details.Background.Color.ToString() -eq '#FF1F2937') 'Dark mode left the window or details panel light.'
         Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FF93B4FF' -and $controls.PercentLabel.Text -eq '25%' -and $controls.RemainingValue.Text -eq 'About 8 minutes') 'Switching themes lost progress or its semantic color.'
@@ -210,7 +227,7 @@ public static class Av1ThemeResourceInspector {
         $controls.Progress.ApplyTemplate() | Out-Null
         Assert-True ($null -ne $controls.Progress.Template.FindName('PART_Indicator', $controls.Progress)) 'The progress template has no indicator.'
         Update-Window ([PSCustomObject]@{ Type = 'VerificationStarted'; Data = [PSCustomObject]@{} })
-        Assert-True ($controls.StatusLabel.Text -eq 'Verifying output' -and $controls.Progress.IsIndeterminate -and
+        Assert-True ($controls.BatchLabel.Text -match 'Small.*Verifying output$' -and $controls.Progress.IsIndeterminate -and
             $controls.RemainingValue.Text -eq 'Checking output...' -and $controls.PercentLabel.Text -ne '100%' -and
             $controls.ActionButton.IsEnabled) 'Verification reports completion early or prevents cancellation.'
         Update-Window ([PSCustomObject]@{ Type = 'Message'; Data = [PSCustomObject]@{ Message = 'A normal update'; Color = 'Gray' } })
@@ -218,7 +235,7 @@ public static class Av1ThemeResourceInspector {
         Update-Window ([PSCustomObject]@{ Type = 'FileResult'; Data = [PSCustomObject]@{
             Status = 'Failed'; Path = 'fixture.mkv'; Message = 'Test failure'
         } })
-        Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.StatusLabel.Text -eq 'Failed') 'A failed file did not reveal its error details.'
+        Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.BatchLabel.Text -match 'Small.*Failed$') 'A failed file did not reveal its error details.'
         Assert-True ($controls.Progress.Foreground.Color.ToString() -eq '#FFB91C1C') 'A failure did not use the error color.'
         $results.Items.Clear()
         $controls.DetailsExpander.IsExpanded = $false
@@ -228,8 +245,8 @@ public static class Av1ThemeResourceInspector {
         $state.Summary = [PSCustomObject]@{ Processed = 1; Skipped = 0; Failed = 0; SavedBytes = 5MB; Cancelled = $false }
         Finish-Window
         Assert-True ($controls.ProgressPanel.Visibility -eq 'Collapsed' -and $controls.TimingPanel.Visibility -eq 'Collapsed') 'Finished encoding still shows progress or timing panels.'
-        Assert-True ($controls.StatusLabel.Visibility -eq 'Collapsed' -and $controls.StatusDot.Visibility -eq 'Collapsed') 'Finished encoding repeats the phase label.'
-        Assert-True ($controls.FileLabel.Text -eq 'Encoding complete' -and $controls.BatchLabel.Text -match '^Finished in ') 'Completion did not replace the filename heading and batch position.'
+        Assert-True ($controls.PercentLabel.Visibility -eq 'Collapsed' -and $controls.BatchLabel.Text -notmatch 'Completed|Encoding$') 'Finished encoding repeats the percentage or processing phase.'
+        Assert-True ($controls.FileLabel.Text -eq 'Encoding complete' -and $controls.BatchLabel.Text -match '^Finished in .*Small$') 'Completion did not replace the filename heading and batch position.'
         Assert-True ($controls.FileLabel.Foreground.Color -eq $window.Resources['SuccessBrush'].Color) 'Encoding completion lost its SuccessBrush heading color.'
         Assert-True ($controls.SummaryLabel.Text -eq '' -and $controls.TimeLabel.Text -eq '' -and -not $results.Items[0].ShowStatus) 'Single-file success repeats counts, savings, or status.'
         Assert-True (-not $state.Clock.IsRunning -and $controls.ActionButton.Content -eq 'Close') 'Completion did not stop timing or enable closing.'
@@ -257,6 +274,15 @@ public static class Av1ThemeResourceInspector {
         Assert-True ($controls.DetailsExpander.IsExpanded -and $controls.FileLabel.Text -eq 'Could not complete encoding') 'Fatal completion hid error details.'
         Assert-True ($controls.FileLabel.Foreground.Color -eq $window.Resources['ErrorBrush'].Color) 'Encoding completion lost its ErrorBrush heading color.'
         $results.Items.Clear()
+        # Queued progress and inspection events must not replace a cancellation request.
+        $state.Running = $true
+        $controls.ActionButton.IsEnabled = $true
+        Request-Cancellation
+        Update-Window ([PSCustomObject]@{ Type = 'FileStarted'; Data = [PSCustomObject]@{ Path = 'next.mkv'; FileNumber = 2; FileCount = 3 } })
+        Update-Window ([PSCustomObject]@{ Type = 'Progress'; Data = [PSCustomObject]@{ Progress = $progress } })
+        Update-Window ([PSCustomObject]@{ Type = 'VerificationStarted'; Data = [PSCustomObject]@{} })
+        Assert-True ($controls.BatchLabel.Text -eq ('File 2 of 3 {0} Small {0} Cancelling' -f [char]0xb7) -and
+            -not $controls.ActionButton.IsEnabled) 'Queued events replaced the cancellation phase or enabled a second cancellation.'
     }
     finally { $cancellation.Dispose() }
     $iconStream = [IO.File]::OpenRead((Join-Path $repoRoot 'resources/SendToAV1.ico'))

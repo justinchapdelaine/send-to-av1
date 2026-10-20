@@ -71,22 +71,13 @@ try {
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBlock Name="FileLabel" Text="Preparing your videos..." Style="{StaticResource HeadingText}" TextWrapping="NoWrap"
                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,16,0"/>
-            <Border Grid.Column="1" Background="{DynamicResource BadgeBrush}" CornerRadius="10" Padding="8,4" VerticalAlignment="Center">
-                <TextBlock Name="ModeLabel" Foreground="{DynamicResource BadgeTextBrush}" FontSize="12" FontWeight="SemiBold"/>
-            </Border>
-        </Grid>
-        <Grid Grid.Row="1" Margin="0,8,0,0">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBlock Name="BatchLabel" Text="Selected videos" Style="{StaticResource SecondaryText}"/>
-            <Ellipse Name="StatusDot" Grid.Column="1" Width="8" Height="8" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
-            <TextBlock Name="StatusLabel" Grid.Column="2" Text="Preparing" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
-        </Grid>
-        <Grid Name="ProgressPanel" Grid.Row="2" Margin="0,16,0,16">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <ProgressBar Name="Progress" Minimum="0" Maximum="100" IsIndeterminate="True"
-                         VerticalAlignment="Center" Style="{StaticResource SharedProgressBar}"/>
             <TextBlock Name="PercentLabel" Grid.Column="1" MinWidth="64" Text="..." FontSize="22" FontWeight="SemiBold"
-                       Foreground="{DynamicResource AccentBrush}" TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                       Foreground="{DynamicResource AccentBrush}" TextAlignment="Right" VerticalAlignment="Center"/>
+        </Grid>
+        <TextBlock Name="BatchLabel" Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource SecondaryText}"/>
+        <Grid Name="ProgressPanel" Grid.Row="2" Margin="0,16,0,16">
+            <ProgressBar Name="Progress" Minimum="0" Maximum="100" IsIndeterminate="True"
+                         Style="{StaticResource SharedProgressBar}"/>
         </Grid>
         <Border Name="TimingPanel" Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
             <Grid>
@@ -168,9 +159,9 @@ try {
     finally { $reader.Close() }
     $window.MaxHeight = [Math]::Max(300, [Windows.SystemParameters]::WorkArea.Height - 32)
     $controls = @{}
-    foreach ($name in @('ModeLabel', 'StatusLabel', 'FileLabel', 'Progress', 'PercentLabel',
+    foreach ($name in @('FileLabel', 'Progress', 'PercentLabel',
             'TimeLabel', 'Results', 'Details', 'ActionButton', 'FolderButton', 'SummaryLabel',
-            'BatchLabel', 'StatusDot', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
+            'BatchLabel', 'RemainingValue', 'ElapsedValue', 'ProcessedValue', 'DetailsExpander',
             'ProgressPanel', 'TimingPanel')) {
         $controls[$name] = $window.FindName($name)
     }
@@ -189,10 +180,9 @@ try {
     $mode = 'CPU'
     if ($Small) { $mode = 'Small' }
     elseif ($Encoder -eq 'nvenc') { $mode = 'NVIDIA' }
-    $controls.ModeLabel.Text = $mode
     $state = @{ Worker = $null; Running = $true; Started = $false; Summary = $null; Fatal = $false
         HasWarnings = $false; OutputPath = $null; CurrentPath = $null; CurrentFinished = $true; LastProgress = $null
-        FileCount = 0; Clock = (New-Object Diagnostics.Stopwatch) }
+        FileCount = 0; Mode = $mode; BatchPosition = 'Selected videos'; Clock = (New-Object Diagnostics.Stopwatch) }
     if ($null -ne $InputPath) { $state.FileCount = $InputPath.Count }
 
     function Add-Detail {
@@ -208,13 +198,13 @@ try {
 
     function Set-Phase {
         param([string]$Text, [string]$Color = '#2563EB')
-        $controls.StatusLabel.Text = $Text
+        $controls.BatchLabel.Text = '{0} {3} {1} {3} {2}' -f $state.BatchPosition, $state.Mode, $Text, [char]0xb7
         $key = Get-AV1StatusBrushKey $Color
-        foreach ($name in @('StatusLabel', 'Progress', 'PercentLabel', 'RemainingValue')) {
+        foreach ($name in @('Progress', 'PercentLabel', 'RemainingValue')) {
             $controls[$name].SetResourceReference([Windows.Controls.Control]::ForegroundProperty, $key)
         }
-        $controls.StatusDot.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $key)
     }
+    Set-Phase 'Preparing'
 
     function Add-Result {
         param($Data)
@@ -255,12 +245,13 @@ try {
                 $state.CurrentFinished = $false
                 $state.FileCount = $data.FileCount
                 $state.LastProgress = $null
-                $controls.BatchLabel.Text = 'File {0} of {1}' -f $data.FileNumber, $data.FileCount
+                $state.BatchPosition = 'File {0} of {1}' -f $data.FileNumber, $data.FileCount
                 if (-not $state.Worker.Cancellation.IsCancellationRequested) {
                     Set-Phase 'Inspecting video'
                     $controls.TimeLabel.Text = ''
                     $controls.RemainingValue.Text = 'Calculating...'
                 }
+                else { Set-Phase 'Cancelling' '#64748B' }
                 $controls.FileLabel.Text = [IO.Path]::GetFileName($data.Path)
                 $controls.FileLabel.ToolTip = $data.Path
                 $controls.Progress.IsIndeterminate = $true
@@ -332,8 +323,7 @@ try {
         $controls.Progress.IsIndeterminate = $false
         $controls.ProgressPanel.Visibility = 'Collapsed'
         $controls.TimingPanel.Visibility = 'Collapsed'
-        $controls.StatusDot.Visibility = 'Collapsed'
-        $controls.StatusLabel.Visibility = 'Collapsed'
+        $controls.PercentLabel.Visibility = 'Collapsed'
         $controls.ActionButton.Content = 'Close'
         $controls.ActionButton.Style = $window.FindResource('PrimaryButton')
         $controls.ActionButton.IsEnabled = $true
@@ -352,7 +342,7 @@ try {
         $controls.FileLabel.Text = $view.Title
         $controls.FileLabel.ToolTip = $null
         $controls.FileLabel.SetResourceReference([Windows.Controls.Control]::ForegroundProperty, (Get-AV1StatusBrushKey $view.Color))
-        $controls.BatchLabel.Text = $view.Subtitle
+        $controls.BatchLabel.Text = '{0} {2} {1}' -f $view.Subtitle, $state.Mode, [char]0xb7
         $controls.SummaryLabel.Text = $view.BatchSummary
         $controls.TimeLabel.Text = $view.Notice
         if ($view.ShowDetails) { $controls.DetailsExpander.IsExpanded = $true }

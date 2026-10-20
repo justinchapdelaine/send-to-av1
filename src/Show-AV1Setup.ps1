@@ -50,8 +50,8 @@ try {
                            Text="Uses BtbN's GPL Windows builds and checks for updates. Clear this option if you provide your own FFmpeg and FFprobe."/>
             </StackPanel>
             <StackPanel Name="ProgressPanel" Visibility="Collapsed" Margin="0,24,0,0">
-                <TextBlock Name="Phase" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
-                <ProgressBar Name="Progress" Margin="0,8,0,0" IsIndeterminate="True" Style="{StaticResource SharedProgressBar}"/>
+                <TextBlock Name="Phase" Style="{StaticResource SecondaryText}"/>
+                <ProgressBar Name="Progress" Margin="0,16,0,0" IsIndeterminate="True" Style="{StaticResource SharedProgressBar}"/>
             </StackPanel>
             <Expander Name="DetailsExpander" Header="Details" Style="{StaticResource DetailsExpander}" Visibility="Collapsed" Margin="0,16,0,0">
                 <TextBox Name="Details" Style="{StaticResource DetailsLog}" Margin="0,8,0,0"/>

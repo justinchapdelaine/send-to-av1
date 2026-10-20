@@ -44,6 +44,7 @@ try {
     Assert-True ($null -eq $window.FindName('OutcomeIcon')) 'Setup retains a redundant heading icon.'
     Assert-True ($controls.Heading.Style -eq $window.FindResource('HeadingText') -and
         $controls.Progress.Style -eq $window.FindResource('SharedProgressBar') -and
+        $controls.Phase.Style -eq $window.FindResource('SecondaryText') -and
         $controls.Details.Style -eq $window.FindResource('DetailsLog')) 'Setup bypasses shared typography, progress, or Details styling.'
     $controls.Details.ApplyTemplate() | Out-Null
     $logHost = $controls.Details.Template.FindName('PART_ContentHost', $controls.Details)
@@ -91,6 +92,7 @@ try {
         $palette = Get-AV1ThemePalette $theme
         Assert-True ($window.Background.Color.ToString() -eq [Windows.Media.ColorConverter]::ConvertFromString($palette.WindowBrush).ToString()) 'Setup ignored its window palette.'
         Assert-True ($controls.ActionButton.Background.Color -eq $window.Resources['PrimaryBrush'].Color) 'The setup action did not follow the theme.'
+        Assert-True ($controls.Phase.Foreground.Color -eq $window.Resources['MutedBrush'].Color) 'The setup phase did not use the shared secondary text palette.'
         $controls.ActionButton.IsEnabled = $false
         Assert-True ($controls.ActionButton.Background.Color -eq $window.Resources['DisabledBrush'].Color) 'Disabled setup buttons did not follow the theme.'
         $controls.ActionButton.IsEnabled = $true
