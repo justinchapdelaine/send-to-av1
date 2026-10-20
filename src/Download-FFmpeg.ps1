@@ -250,7 +250,7 @@ function Invoke-GitHubJsonRequest {
         'Accept' = 'application/vnd.github+json'
     }
 
-    return Invoke-RestMethod -Uri $Uri -Headers $headers -ErrorAction Stop
+    return Invoke-RestMethod -Uri $Uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
 }
 
 function Get-ReleaseAsset {
@@ -310,7 +310,7 @@ function Save-Download {
         # Windows PowerShell's download progress renderer is very slow for
         # large ZIP files, so suppress it while preserving the caller setting.
         $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri $ReleaseAsset.Asset.browser_download_url -Headers $headers -OutFile $ArchivePath -ErrorAction Stop
+        Invoke-WebRequest -Uri $ReleaseAsset.Asset.browser_download_url -Headers $headers -OutFile $ArchivePath -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
     }
     finally {
         $ProgressPreference = $previousProgressPreference

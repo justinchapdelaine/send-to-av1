@@ -1,266 +1,147 @@
 # Send to AV1
 
-Send to AV1 is a small Windows utility that adds **Send to AV1** items to the Windows **Send to** menu.
+Convert videos to AV1 from the Windows **Send to** menu, with simple setup and progress windows. Your original files stay intact.
 
-It converts selected video files to AV1 using FFmpeg, writing MKV by default while preserving the original files.
+Choose CPU encoding for quality and compression, NVIDIA encoding for speed, or Small mode for smaller files. Outputs are saved beside the originals as MKV files, with audio and other supported streams copied without re-encoding.
 
-## Quick start
+[Installation](#installation) · [Usage](#usage) · [Encoding modes](#encoding-modes) · [Troubleshooting](#troubleshooting) · [Uninstall](#uninstall) · [Contributing](CONTRIBUTING.md)
 
-1. Double-click `Install-SendTo.cmd`.
-2. Approve the FFmpeg download prompt if you want a portable FFmpeg install.
-3. Select one or more videos in File Explorer.
-4. Right-click, choose **Send to**, then choose **Send to AV1**, **Send to AV1 - NVIDIA**, or **Send to AV1 - Small**.
+## Features
 
-The installer creates these per-user launchers:
+- Encode one video or a batch directly from File Explorer.
+- See progress, elapsed time, and an estimated time remaining in a responsive window.
+- Compare input and output sizes when each file finishes.
+- Preserve audio tracks, subtitles, chapters, attachments, and metadata where supported.
+- Verify AV1 video, audio/subtitle stream counts, and duration before reporting success when FFprobe is available.
+- Cancel an encode while keeping completed outputs and original files.
+- Use setup and encoding windows that follow Windows' light/dark app preference and high-contrast settings.
+- Install for the current user without administrator rights.
+
+## Requirements
+
+- A Windows desktop. The double-click setup launchers use built-in Windows PowerShell 5.1 and Windows Script Host. Encoding prefers PowerShell 7 when available on `PATH`, with Windows PowerShell 5.1 as the fallback.
+- A recent FFmpeg build with `libsvtav1` support for CPU and Small modes, or `av1_nvenc` support for NVIDIA mode. The installer can download portable tools for x64 or ARM64 Windows.
+- FFprobe is recommended for output verification, duration estimates, and detection of existing AV1 video. The optional portable download includes both FFmpeg and FFprobe.
+- For NVIDIA mode, a GPU and driver that support **AV1 encoding**.
+
+FFmpeg binaries are downloaded separately and are not included in this repository. Standard Windows desktop installations already include the .NET Framework compiler used to build the small launcher; no separate SDK is needed.
+
+## Installation
+
+1. Download this repository using **Code → Download ZIP** and extract it, or clone it with Git.
+2. Keep the entire extracted project folder somewhere permanent that your Windows account can write to.
+3. Double-click **`Install-SendTo.vbs`** to open the setup window without a console flash.
+4. Review the project folder and FFmpeg option, then choose **Install**. Leave **Download or update portable FFmpeg** selected to install or update the tools when needed, or clear it if you provide your own in `bin` or on `PATH`.
+
+Setup uses the project folder in place and adds three shortcuts to your Windows **Send to** menu. Keep its `src`, `resources`, and `bin` folders together, and re-run the installer if you move the project.
+
+The window shows the current setup stage and keeps diagnostics under **Details**. Warnings and failures open Details automatically and offer **Try again**. If FFmpeg setup fails, the shortcuts can still be installed; working tools must be available before you can encode. Once setup starts, let it finish before closing the window.
+
+### Updates
+
+To update, replace the project files or pull the latest changes, then open `Install-SendTo.vbs` and choose **Install** again. This rebuilds the launcher, refreshes the shortcuts and icons, and checks for portable FFmpeg updates when the download option is selected. Encoding itself does not check for or download updates.
+
+### Setup alternatives
+
+Double-clicking `Install-SendTo.cmd` opens the same setup window, though Windows may briefly show a console for the batch file. If Windows Script Host is unavailable, open a terminal in the project folder and run the console installer:
+
+```powershell
+.\Install-SendTo.cmd --console
+```
+
+## Usage
+
+1. Select one or more videos in File Explorer.
+2. Right-click and choose **Send to**.
+3. Select an encoding mode from the table below.
+
+On Windows 11, you may need **Show more options → Send to**.
+
+Encoding starts automatically. The window shows the current file, its position in the batch, progress, and timing estimates. Files are processed one at a time. Hover over the remaining time to see the estimate in hours, minutes, and seconds.
+
+The window updates when you change Windows' light/dark app preference or high-contrast settings, including after encoding finishes.
+
+Use **Cancel** to stop the current encode and the rest of the batch. Incomplete output is removed; completed files remain. When finished, review the size comparisons or choose **Open output folder**. **Details** opens automatically for errors and can be expanded for other diagnostic information.
+
+When encoding finishes, progress and timing fields are replaced by a completion heading and time taken. Completed-file cards show the size comparison and output path; skipped and failed files show their status and explanation. Batches also show counts and total savings above the cards.
+
+For longer result lists, press **Tab** to focus the results area, then use the **Up/Down** or **Page Up/Page Down** keys to scroll. Result cards remain non-selectable.
+
+## Encoding modes
+
+| Send to entry | Encoder | Best for | Resolution | Existing AV1 input |
+| --- | --- | --- | --- | --- |
+| **Send to AV1** | CPU / SVT-AV1, CRF 34 | Balancing quality and compression | Preserved | Skipped when detected |
+| **Send to AV1 - NVIDIA** | NVIDIA AV1 NVENC, CQ 32 | Faster encoding on supported GPUs | Preserved | Skipped when detected |
+| **Send to AV1 - Small** | CPU / SVT-AV1, CRF 38 | Prioritizing smaller files | Fits within 1280×720, without upscaling | Re-encoded |
+
+Small mode trades visual quality for file size and can recompress existing AV1 recordings, including OBS NVENC AV1 captures. All modes copy audio unchanged. A smaller output is not guaranteed; larger outputs are kept and flagged with a warning.
+
+See the [encoding reference](docs/encoding.md#presets) for complete settings and command-line overrides.
+
+## Output files
+
+Outputs are written beside their source files. Originals and existing outputs are never overwritten.
 
 ```text
-%APPDATA%\Microsoft\Windows\SendTo\Send to AV1.cmd
-%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - NVIDIA.cmd
-%APPDATA%\Microsoft\Windows\SendTo\Send to AV1 - Small.cmd
+Recording.mp4         ← original, kept unchanged
+Recording_AV1.mkv     ← encoded output
+Recording_AV1_2.mkv   ← next output if the first name already exists
 ```
 
-No administrator rights are required. The launchers point to `src\Optimize-AV1.ps1` in the current project folder, so run `Install-SendTo.cmd` again if you move the folder.
+MKV is the default because it supports a wide range of copied streams. Data and unknown streams, such as MOV timecode tracks, are omitted. Optional MP4 output is available through the command line, but incompatible copied streams can cause it to fail.
 
-## What it does
+Before assigning the final filename, FFprobe checks the encoded file's video codec, video/audio/subtitle counts, overall duration, and each video's duration against the source. Failed verification removes the temporary encode and reports an error. Without FFprobe, encoding still works with a warning that verification was skipped. These are metadata checks, not a full decode; see [output verification](docs/encoding.md#output-verification) for tolerances and limits.
 
-Send to AV1 will:
+## Command-line usage
 
-- create a new AV1 file beside the original video, using MKV by default
-- leave the original video untouched
-- copy audio, subtitles, chapters, attachments, and metadata where possible
-- omit data and unknown streams, such as MOV timecode tracks, that can prevent conversion to MKV
-- skip obvious non-video files with a clear message
-- skip files that are already AV1 when `ffprobe` is available, except in Small mode
-- show a progress bar with processed video time, elapsed time, and estimated time remaining
-- process multiple selected files sequentially
-- print a summary at the end
-
-## FFmpeg
-
-FFmpeg is **not included** in the source repository.
-
-Send to AV1 looks for FFmpeg in this order:
-
-1. Local tools in the project root:
-   - `bin/ffmpeg.exe`
-   - `bin/ffprobe.exe`
-2. System PATH:
-   - `ffmpeg`
-   - `ffprobe`
-
-During install, Send to AV1 checks the local `bin` folder and can download or update portable FFmpeg tools when you approve the prompt. If GitHub cannot be reached but local FFmpeg tools are already installed, the installer keeps using them.
-
-Download or update portable FFmpeg manually:
+Run these commands from the project folder:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Download-FFmpeg.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Download-FFmpeg.ps1 -Architecture x64
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Download-FFmpeg.ps1 -Architecture arm64
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Download-FFmpeg.ps1 -Force
+# Default CPU mode
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 "C:\Videos\Recording.mp4"
+
+# Small mode, including existing AV1 inputs
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Small "C:\Videos\Recording.mkv"
+
+# NVIDIA mode
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Encoder nvenc "C:\Videos\Recording.mp4"
 ```
 
-The downloader uses BtbN's GPL Windows builds, supports x64 and ARM64, chooses the native Windows architecture by default, installs only `ffmpeg.exe` and `ffprobe.exe` into `bin`, and prints whether the installed FFmpeg exposes `libsvtav1`, `av1_nvenc`, and NVIDIA HQ/UHQ tune support.
+The console interface uses the same encoding engine as the window. See the [encoding reference](docs/encoding.md) for quality settings, dry runs, diagnostics, retained logs, and manual GUI launch commands.
 
-## Presets
+## Troubleshooting
 
-### Send to AV1
+| Problem | What to check |
+| --- | --- |
+| The setup window does not open | Extract the entire project before running setup. Try `Install-SendTo.cmd`; if Windows Script Host is unavailable, run `.\Install-SendTo.cmd --console` from the project folder. |
+| Send to entries are missing or still use an older window/icon | Re-run `Install-SendTo.vbs`. On Windows 11, check **Show more options**. |
+| FFmpeg is missing or the download fails | Review setup's **Details**, then retry with GitHub access, or place `ffmpeg.exe` and `ffprobe.exe` in `bin`. Tools in `bin` take priority over tools on `PATH`. |
+| NVIDIA encoding fails | Check that both your FFmpeg build and GPU/driver support AV1 encoding. An encoder listed by FFmpeg does not confirm hardware support. |
+| A video is skipped as already AV1 | Use Small mode to allow re-encoding. |
+| No percentage or remaining time is shown | FFprobe could not determine the duration. Processed and elapsed times remain available. |
+| An encode fails or reports warnings | Expand **Details**. For retained diagnostic logs, use `-KeepLog` from the command line. |
 
-The default storage preset uses CPU-based SVT-AV1 for maximum compression efficiency:
+Diagnostic logs normally live in the system temporary folder and are deleted after use, including after a failure has been displayed. `-KeepLog` retains them and reports their location. See [progress and diagnostics](docs/encoding.md#encoding-progress-and-diagnostics) for cleanup behavior and inspection timeouts.
 
-```text
-Container: MKV
-Video encoder: libsvtav1
-CRF: 34
-Preset: 5
-Keyframe interval: approximately 10 seconds (adapts to frame rate)
-SVT parameters: keyint=10s:tune=0
-Pixel format: yuv420p10le
-Audio/subtitles/metadata/chapters: copied where possible
-```
+HDR and Dolby Vision edge cases are not specially handled. PowerShell restrictions enforced by Group Policy may prevent the scripts from running.
 
-### Send to AV1 - NVIDIA
-
-The NVIDIA preset uses GPU-based AV1 NVENC for much faster conversion on supported NVIDIA GPUs:
-
-```text
-Container: MKV
-Video encoder: av1_nvenc
-Preset: p7
-Tune: uhq when available, otherwise hq
-Rate control: vbr
-CQ: 32
-Pixel format: p010le
-Audio/subtitles/metadata/chapters: copied where possible
-```
-
-NVIDIA mode requires both FFmpeg `av1_nvenc` support and an NVIDIA GPU/driver with AV1 encode support. Seeing `av1_nvenc` in the capability summary means the FFmpeg build exposes the encoder; it does not prove this computer has NVIDIA hardware.
-
-### Send to AV1 - Small
-
-The small-file preset uses CPU/SVT-AV1 at **CRF 38**, with preset 5, the same approximately 10-second keyframe interval, and the same 10-bit settings as the default CPU mode. Video fits within **1280x720**, preserving aspect ratio and never upscaling smaller inputs (output dimensions are even for 4:2:0 video).
-
-Small mode **allows re-encoding existing AV1 files**, including OBS NVENC AV1 recordings. Re-encoding and downscaling sacrifice quality to reduce size; a smaller output is not guaranteed. All audio tracks are copied unchanged, along with other non-video streams where supported. Originals and existing outputs are preserved using the usual output naming rules.
-
-Run `Install-SendTo.cmd` again to add the new menu entry to an existing installation.
-
-## Manual usage
-
-Run the optimizer directly:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 "C:\Path\Video.mp4"
-```
-
-NVIDIA mode:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Encoder nvenc "C:\Path\Video.mp4"
-```
-
-Small-file mode (also accepts AV1 input):
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Small "C:\Path\Recording.mkv"
-```
-
-`-Small` defaults to CRF 38; pass `-Crf` to override it, for example `-Small -Crf 40`. It cannot be combined with `-Encoder nvenc`. Other modes retain their existing defaults and skip already-AV1 files.
-
-Advanced parameters:
-
-```powershell
-# CPU/SVT tuning
--Crf 34 -Preset 5
-
-# NVIDIA tuning
--NvencPreset p7 -NvencTune auto -NvencCq 32  # CQ range: 0-63
-
-# Output container
--OutputContainer mkv  # default
--OutputContainer mp4  # optional, less compatible with copied streams
-
-# Checks without encoding
--Diagnostics
--DryRun
-
-# Keep detailed encoder diagnostics in the system temp folder
--KeepLog
-```
-
-Diagnostics mode prints FFmpeg, FFprobe, SVT-AV1, NVIDIA AV1 NVENC, and NVIDIA tune support without requiring input files:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Diagnostics
-```
-
-Dry-run mode resolves inputs, chooses output names, and prints the FFmpeg command without starting an encode:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -DryRun "C:\Path\Video.mp4"
-```
-
-## Encoding progress and diagnostics
-
-During encoding, the console shows the filename and its position in the selected batch, plus a progress bar, processed video time, elapsed time, and estimated time remaining. FFprobe supplies the total duration and FFmpeg supplies structured progress timestamps. The estimate changes with encoding speed; completion is reported only after FFmpeg succeeds and the output file is finalized.
-
-If the duration is unavailable, the display shows processed and elapsed time without a percentage or remaining-time estimate. Full capability information remains available with `-Diagnostics`.
-
-Detailed FFmpeg/SVT output goes to a temporary diagnostic log instead of flooding the console. Error-level diagnostics are still shown as a warning when FFmpeg recovers and exits successfully; inspect the output before relying on it. Normal completion deletes the log. On failure, the most recent diagnostic lines are displayed before the log is deleted. If a log cannot be deleted, its path is reported and the encoded video is preserved. Handled interruptions also clean up; a forced shutdown may leave a temporary log behind.
-
-To retain diagnostics for troubleshooting, use `-KeepLog`. The log stays in the system temp folder and its location is printed, whether the encode succeeds or fails:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Optimize-AV1.ps1 -Small -KeepLog "C:\Path\Recording.mkv"
-```
-
-## Safety behavior
-
-Send to AV1 is designed to be conservative:
-
-- original files are never modified
-- original files are never deleted
-- FFmpeg downloads are explicit and prompted; conversion does not auto-download binaries
-- incomplete temporary output files are deleted if encoding fails
-- final output filenames are collision-safe
-- successful outputs are kept even if they are larger than the original, but a warning is printed
-
-## Output naming
-
-For an input file named:
-
-```text
-Example.mp4
-```
-
-The default output will be:
-
-```text
-Example_AV1.mkv
-```
-
-If that file already exists, Send to AV1 will use:
-
-```text
-Example_AV1_2.mkv
-Example_AV1_3.mkv
-...
-```
-
-You can choose MP4 with `-OutputContainer mp4`, but MKV remains the default because it is more forgiving when copying audio, subtitles, attachments, chapters, and metadata from many source formats.
+If you report an issue, include the chosen mode, the error shown in Details, and relevant FFmpeg diagnostics.
 
 ## Uninstall
 
-Double-click `Uninstall-SendTo.cmd`, or run it from Command Prompt:
+Double-click **`Uninstall-SendTo.vbs`**, review what will be removed, and choose **Uninstall**. It leaves the project folder, portable tools, and your videos in place. You can delete the project folder afterward if you no longer need it.
 
-```cmd
-Uninstall-SendTo.cmd
-```
-
-## Development checks
-
-Run the lightweight repository checks without FFmpeg:
+`Uninstall-SendTo.cmd` opens the same window. For console removal without Windows Script Host, run this from a terminal in the project folder:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Repository.ps1
+.\Uninstall-SendTo.cmd --console
 ```
 
-Run the output-safety regression checks without FFmpeg. These verify tool discovery with duplicate PATH matches and preserve both results when two processes finalize the same output name:
+## Development
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-OutputSafety.ps1
-```
-
-Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC encoder support) and FFprobe available. These generate short test clips in a temporary directory and verify AV1 re-encoding, resolution limits, unchanged audio tracks, output collisions, and existing-mode behavior. They also cover MOV timecode inputs and preservation of supported subtitles, attachments, metadata, and chapters. No NVIDIA GPU is needed for these checks.
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-SmallMode.ps1
-```
-
-Run the progress and diagnostic-log checks with FFmpeg/SVT-AV1 and FFprobe available. These cover progress calculations, real encoding timestamps, missing durations, native argument quoting, diagnostic retention and cleanup failures, recovered decoder errors, portable-only tool discovery, verbose failures, and encoder interruption:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-EncodingProgress.ps1
-```
-
-## Known limitations
-
-- Windows 11 may place **Send to** under the legacy context menu path depending on your system and Explorer behavior.
-- This is not a video editor or general-purpose converter.
-- Dolby Vision/HDR edge cases are not specially handled in v1.
-- If `ffprobe` is unavailable, the script may not detect already-AV1 inputs before attempting conversion. It will still skip files with extensions that are not recognized as common video types.
-- NVIDIA mode requires an NVIDIA GPU with AV1 encode support. Having an NVIDIA GPU is not enough by itself.
-- NVIDIA UHQ support depends on your FFmpeg build, NVIDIA driver, and Video Codec SDK support. If UHQ is unavailable, the script falls back to HQ.
-- MP4 output can fail when copied streams are not compatible with the MP4 container. Use the default MKV container for maximum preservation.
-- Portable FFmpeg downloads require GitHub access because BtbN publishes builds through GitHub releases.
-- Install/uninstall are CMD-based, but the optimizer itself still uses PowerShell. The launcher prefers PowerShell 7 when installed and falls back to Windows PowerShell 5.1. If your computer is heavily locked down by Group Policy, PowerShell script execution may still be blocked.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure, automated checks, and Windows validation steps.
 
 ## License
 
-Send to AV1 is licensed under the GNU General Public License v3.0 or later.
-
-See [`LICENSE`](LICENSE).
-
-## Third-party software
-
-This project uses FFmpeg when available, but the source repository does not include FFmpeg binaries.
-
-The optional downloader retrieves BtbN FFmpeg builds from GitHub releases. FFmpeg and BtbN builds are separate projects with their own license terms. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Licensed under [GNU GPL v3.0 or later](LICENSE). FFmpeg and the optional [BtbN builds](https://github.com/BtbN/FFmpeg-Builds) are separate projects with their own license terms; see [third-party notices](THIRD_PARTY_NOTICES.md).

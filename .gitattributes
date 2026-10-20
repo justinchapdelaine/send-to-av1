@@ -1,6 +1,10 @@
 # Keep Windows launcher/script files with Windows line endings
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.cs text eol=crlf
+*.vbs text eol=crlf
+*.xaml text eol=lf
 
 # Keep docs/config readable across platforms
 *.md text eol=lf

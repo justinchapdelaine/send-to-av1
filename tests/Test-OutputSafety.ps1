@@ -9,7 +9,7 @@ param()
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-$optimizer = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/Optimize-AV1.ps1'
+$optimizer = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/AV1.Core.psm1'
 $tokens = $null
 $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile($optimizer, [ref]$tokens, [ref]$errors)

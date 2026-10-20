@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $optimizerPath = Join-Path $repoRoot 'src\Optimize-AV1.ps1'
+$corePath = Join-Path $repoRoot 'src\AV1.Core.psm1'
 $downloaderPath = Join-Path $repoRoot 'src\Download-FFmpeg.ps1'
 $installerPath = Join-Path $repoRoot 'Install-SendTo.cmd'
 $binReadmePath = Join-Path $repoRoot 'bin\README.md'
@@ -32,15 +33,22 @@ Assert-True (Test-Path -LiteralPath $optimizerPath -PathType Leaf) 'Missing src\
 Assert-True (Test-Path -LiteralPath $downloaderPath -PathType Leaf) 'Missing src\Download-FFmpeg.ps1.'
 Assert-True (Test-Path -LiteralPath $installerPath -PathType Leaf) 'Missing Install-SendTo.cmd.'
 Assert-True (Test-Path -LiteralPath $binReadmePath -PathType Leaf) 'Missing bin\README.md.'
+foreach ($name in @('AV1.Core.psm1', 'AV1.Worker.psm1', 'AV1.ViewModel.psm1', 'AV1.Theme.psm1', 'AV1.Xaml.psm1', 'AV1.Setup.psm1', 'Show-AV1Progress.ps1', 'Show-AV1Setup.ps1', 'Install-SendTo.ps1', 'Build-Launcher.ps1', 'SendToAv1Launcher.cs')) {
+    Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot ('src/' + $name)) -PathType Leaf) ('Missing src/' + $name)
+}
+foreach ($name in @('Install-SendTo.vbs', 'Uninstall-SendTo.vbs', 'resources/AV1.Controls.xaml')) {
+    Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot $name) -PathType Leaf) ('Missing ' + $name)
+}
+Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot 'resources/SendToAV1.ico') -PathType Leaf) 'Missing application icon.'
 
-foreach ($scriptPath in @($optimizerPath, $downloaderPath)) {
+foreach ($scriptPath in (Get-ChildItem (Join-Path $repoRoot 'src') -File | Where-Object { $_.Extension -in @('.ps1', '.psm1') }).FullName) {
     $tokens = $null
     $errors = $null
     [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errors) | Out-Null
     Assert-True ($errors.Count -eq 0) ('PowerShell parser found errors in {0}: {1}' -f (Resolve-Path -LiteralPath $scriptPath -Relative), (($errors | ForEach-Object { $_.Message }) -join '; '))
 }
 
-$optimizerText = Get-Content -Raw -LiteralPath $optimizerPath
+$optimizerText = (Get-Content -Raw -LiteralPath $optimizerPath) + (Get-Content -Raw -LiteralPath $corePath)
 $downloaderText = Get-Content -Raw -LiteralPath $downloaderPath
 $installerText = Get-Content -Raw -LiteralPath $installerPath
 

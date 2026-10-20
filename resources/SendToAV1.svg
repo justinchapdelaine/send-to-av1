@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+  <rect width="256" height="256" rx="54" fill="#2563eb"/>
+  <text x="128" y="153" text-anchor="middle" font-family="DejaVu Sans,Segoe UI,sans-serif" font-weight="bold" font-size="92" fill="#ffffff">AV1</text>
+  <rect x="43" y="185" width="170" height="13" rx="6.5" fill="#93c5fd"/>
+  <rect x="43" y="185" width="108" height="13" rx="6.5" fill="#ffffff"/>
+</svg>
