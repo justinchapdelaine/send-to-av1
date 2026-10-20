@@ -381,76 +381,22 @@ function New-EncoderConfiguration {
     }
 }
 
-function Get-PrimaryVideoCodec {
-    param(
-        [string]$FfprobePath,
-        [string]$Path
-    )
+function Get-SourceMediaInfo {
+    param([string]$FfprobePath, [string]$Path)
 
-    if ([string]::IsNullOrWhiteSpace($FfprobePath)) {
-        return $null
-    }
-
+    if ([string]::IsNullOrWhiteSpace($FfprobePath)) { return $null }
     try {
-        $probeArgs = @(
-            '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_entries', 'stream=codec_name,codec_type',
-            '-of', 'json',
-            $Path
-        )
-
-        $query = Invoke-AV1ToolQuery -Executable $FfprobePath -Arguments $probeArgs -Purpose 'Video codec inspection'
-        if ($query.ExitCode -ne 0) {
-            return $null
-        }
-        $probeOutput = $query.StandardOutput
-
-        if ([string]::IsNullOrWhiteSpace($probeOutput)) {
-            return $null
-        }
-
-        $probe = $probeOutput | ConvertFrom-Json
-        $stream = @($probe.streams | Where-Object { $_.codec_type -eq 'video' }) | Select-Object -First 1
-        if ($null -eq $stream -or [string]::IsNullOrWhiteSpace($stream.codec_name)) {
-            return $null
-        }
-
-        return $stream.codec_name.Trim().ToLowerInvariant()
+        return Get-MediaInfo -FfprobePath $FfprobePath -Path $Path -Purpose 'Source media inspection'
     }
     catch [OperationCanceledException] { throw }
     catch [TimeoutException] {
         Write-AV1Message ('Warning: {0} The file will be skipped.' -f $_.Exception.Message) -ForegroundColor Yellow
         return $null
     }
-    catch {
-        return $null
-    }
+    catch { return $null }
 }
 
-function Get-MediaDuration {
-    param([string]$FfprobePath, [string]$Path)
-
-    if ([string]::IsNullOrWhiteSpace($FfprobePath)) { return 0.0 }
-    try {
-        $query = Invoke-AV1ToolQuery -Executable $FfprobePath -Arguments @('-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', $Path) -Purpose 'Video duration inspection'
-        if ($query.ExitCode -ne 0) { return 0.0 }
-        $text = $query.StandardOutput
-        $duration = 0.0
-        if ([double]::TryParse($text.Trim(), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$duration) -and
-            $duration -gt 0 -and -not [double]::IsInfinity($duration)) {
-            return $duration
-        }
-    }
-    catch [OperationCanceledException] { throw }
-    catch [TimeoutException] {
-        Write-AV1Message ('Warning: {0} Continuing without a duration estimate.' -f $_.Exception.Message) -ForegroundColor Yellow
-    }
-    catch { }
-    return 0.0
-}
-
-function Get-MediaVerificationInfo {
+function Get-MediaInfo {
     param([string]$FfprobePath, [string]$Path, [string]$Purpose)
 
     $query = Invoke-AV1ToolQuery -Executable $FfprobePath -Arguments @(
@@ -482,7 +428,7 @@ function Get-MediaVerificationInfo {
         }
         $video = @($streams | Where-Object { $_.codec_type -eq 'video' })
         $codecs = @($video | ForEach-Object {
-            if ($_.PSObject.Properties['codec_name']) { [string]$_.codec_name } else { '' }
+            if ($_.PSObject.Properties['codec_name']) { ([string]$_.codec_name).Trim().ToLowerInvariant() } else { '' }
         })
         return [PSCustomObject]@{
             VideoCount = $video.Count; VideoCodecs = $codecs
@@ -497,7 +443,7 @@ function Get-MediaVerificationInfo {
 function Assert-AV1Output {
     param([string]$FfprobePath, [string]$Path, [PSCustomObject]$Expected)
 
-    $actual = Get-MediaVerificationInfo -FfprobePath $FfprobePath -Path $Path -Purpose 'Output verification'
+    $actual = Get-MediaInfo -FfprobePath $FfprobePath -Path $Path -Purpose 'Output verification'
     if ($actual.VideoCount -lt 1 -or @($actual.VideoCodecs | Where-Object { $_ -ne 'av1' }).Count -gt 0) {
         throw 'Output verification failed: the output does not contain only AV1 video streams.'
     }
@@ -793,7 +739,14 @@ function Convert-VideoToAv1 {
     Write-Section ("File {0} of {1}: {2}" -f $FileNumber, $FileCount, $inputItem.Name)
     Write-AV1Message ("Input:  {0}" -f $resolvedInput)
 
-    $codec = Get-PrimaryVideoCodec -FfprobePath $FfprobePath -Path $resolvedInput
+    # Inspect once and reuse the same snapshot for skipping, progress, and
+    # output verification. Do not cache across files or later batch invocations.
+    $sourceInfo = Get-SourceMediaInfo -FfprobePath $FfprobePath -Path $resolvedInput
+    $codec = $null
+    if ($null -ne $sourceInfo -and $sourceInfo.VideoCount -gt 0 -and
+        -not [string]::IsNullOrWhiteSpace($sourceInfo.VideoCodecs[0])) {
+        $codec = $sourceInfo.VideoCodecs[0]
+    }
     if ($codec -eq 'av1' -and -not $Small) {
         Write-AV1Message 'Skipped: source video codec is already AV1.' -ForegroundColor Yellow
         $Script:SkippedCount++
@@ -870,12 +823,8 @@ function Convert-VideoToAv1 {
     }
 
     Assert-AV1NotCancelled
-    $duration = Get-MediaDuration -FfprobePath $FfprobePath -Path $resolvedInput
-    $verificationInfo = $null
-    if (-not [string]::IsNullOrWhiteSpace($FfprobePath)) {
-        $verificationInfo = Get-MediaVerificationInfo -FfprobePath $FfprobePath -Path $resolvedInput -Purpose 'Source verification inspection'
-        if ($verificationInfo.VideoCount -lt 1) { throw 'Source verification inspection did not find a video stream.' }
-    }
+    $duration = 0.0
+    if ($null -ne $sourceInfo) { $duration = $sourceInfo.DurationSeconds }
     $activity = 'Encoding file {0} of {1}: {2}' -f $FileNumber, $FileCount, $inputItem.Name
     $encodeReturned = $false
     try {
@@ -917,12 +866,12 @@ function Convert-VideoToAv1 {
 
     try {
         Assert-AV1NotCancelled
-        if ($null -ne $verificationInfo) {
+        if ($null -ne $sourceInfo) {
             Send-AV1Event -Type 'VerificationStarted'
             Write-AV1Message 'Verifying output...'
             if ($null -eq $script:EventSink) { Write-Progress -Id 1 -Activity $activity -Status 'Verifying output...' -PercentComplete 99 }
-            Assert-AV1Output -FfprobePath $FfprobePath -Path $tempOutput -Expected $verificationInfo
-            if ($verificationInfo.DurationSeconds -gt 0) { Write-AV1Message 'Output verification passed.' }
+            Assert-AV1Output -FfprobePath $FfprobePath -Path $tempOutput -Expected $sourceInfo
+            if ($sourceInfo.DurationSeconds -gt 0) { Write-AV1Message 'Output verification passed.' }
         }
         else {
             Write-AV1Message 'Warning: Output verification was skipped because ffprobe is unavailable.' -ForegroundColor Yellow

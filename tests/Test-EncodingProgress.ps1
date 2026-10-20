@@ -127,7 +127,7 @@ try {
     $progress = Get-EncodingProgress -DurationSeconds 120 -ProcessedSeconds 125 -ElapsedSeconds 10 -Finalizing
     Assert-True ($progress.Percent -eq 99 -and $progress.Status -match 'Finalizing') 'Progress must not report completion before finalization.'
     Assert-True ((Format-ProgressTime 97205) -eq '27:00:05') 'Long videos must not wrap at 24 hours.'
-    Assert-True ((Get-MediaDuration -FfprobePath '' -Path 'unused') -eq 0) 'Missing FFprobe must return unknown duration.'
+    Assert-True ($null -eq (Get-SourceMediaInfo -FfprobePath '' -Path 'unused')) 'Missing FFprobe must return no source metadata.'
 
     $output = Join-Path $tempRoot ('clip [test] caf' + [char]0xe9 + '.mkv')
     $arguments = @('-hide_banner', '-nostdin', '-nostats', '-progress', 'pipe:1', '-stats_period', '0.05',
@@ -141,9 +141,9 @@ try {
     Assert-True (@($active | Where-Object { $_.Percent -gt 99 }).Count -eq 0) 'Running encoder reported 100%.'
     Assert-True ($run.Updates[-1].Completed) 'Progress bar was not cleared.'
     Assert-True (@(Get-ChildItem -LiteralPath $tempRoot -Filter 'send-to-av1-*.log').Count -eq 0) 'Successful encode left a diagnostic log.'
-    $duration = Get-MediaDuration -FfprobePath $ffprobe -Path $output
+    $duration = (Get-SourceMediaInfo -FfprobePath $ffprobe -Path $output).DurationSeconds
     Assert-True ([Math]::Abs($duration - 1.0) -lt 0.1) 'MKV duration probe did not match the encoded clip.'
-    Assert-True ((Get-MediaDuration -FfprobePath $ffprobe -Path (Join-Path $tempRoot 'missing.mkv')) -eq 0) 'Probe failures must return unknown duration.'
+    Assert-True ($null -eq (Get-SourceMediaInfo -FfprobePath $ffprobe -Path (Join-Path $tempRoot 'missing.mkv'))) 'Probe failures must return no source metadata.'
 
     # A diagnostic-log lock after successful encoding must preserve the video.
     $Script:ProcessedCount = 0; $Script:PlannedCount = 0
@@ -162,7 +162,7 @@ try {
     }
     finally { $script:lockDiagnosticLog = $false }
     Assert-True ($Script:ProcessedCount -eq 1 -and $text -match 'Completed\.') 'Log cleanup failure invalidated a successful encode.'
-    Assert-True ((Test-Path -LiteralPath $expectedOutput) -and (Get-MediaDuration -FfprobePath $ffprobe -Path $expectedOutput) -gt 0) 'Log cleanup failure discarded the encoded video.'
+    Assert-True ((Test-Path -LiteralPath $expectedOutput) -and (Get-SourceMediaInfo -FfprobePath $ffprobe -Path $expectedOutput).DurationSeconds -gt 0) 'Log cleanup failure discarded the encoded video.'
     Assert-True ($text -match 'Warning: Could not delete temporary diagnostic log:' -and $text -match 'simulated diagnostic file lock') 'Log cleanup failure was not explained.'
     Assert-True ((Get-FileHash -LiteralPath $output).Hash -eq $inputHash) 'Log cleanup failure modified the source.'
     Get-ChildItem -LiteralPath $tempRoot -Filter 'send-to-av1-*.log' | ForEach-Object { Remove-Item -LiteralPath $_.FullName }

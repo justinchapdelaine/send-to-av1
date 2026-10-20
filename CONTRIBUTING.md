@@ -54,7 +54,7 @@ Run the Small-mode integration checks with FFmpeg (including SVT-AV1 and NVENC e
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-SmallMode.ps1
 ```
 
-Check output verification with FFmpeg/SVT-AV1 and FFprobe. These checks use real multi-track clips and malformed/shortened outputs, exercise shifted Matroska, MP4, and MPEG-TS timestamps, and ensure failed or cancelled verification cannot publish a file. They also cover verification timeouts, unknown source duration, and the existing no-FFprobe fallback:
+Check output verification with FFmpeg/SVT-AV1 and FFprobe. These checks use real multi-track clips and malformed/shortened outputs, exercise shifted Matroska, MP4, and MPEG-TS timestamps, and ensure failed or cancelled verification cannot publish a file. They also check that a single source inspection supplies both progress and verification metadata, along with verification timeouts, unknown source duration, and the existing no-FFprobe fallback:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-OutputVerification.ps1
@@ -72,7 +72,7 @@ Exercise the actual GUI background worker without opening a window. These checks
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-GuiWorker.ps1
 ```
 
-Check inspection cancellation and timeouts, including termination of stalled child processes, concurrent stdout/stderr capture, and cancellation propagation through every inspection stage:
+Check inspection cancellation and timeouts, including termination of stalled child processes, concurrent stdout/stderr capture, and cancellation propagation through every inspection stage. These checks also cover one source query per input, dry runs, unreadable or unsupported inputs, malformed metadata, and continuing a batch after a source timeout:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Inspection.ps1

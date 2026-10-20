@@ -131,7 +131,7 @@ The downloader uses BtbN's GPL Windows builds, supports x64 and ARM64, chooses t
 
 ## Output verification
 
-When FFprobe is available, Send to AV1 inspects the source before encoding and checks the temporary encoded file before assigning its final filename or reporting success. All video streams must be AV1, and video, audio, and subtitle stream counts must match the source. Reported durations must match within two seconds or 0.1% of the source duration, whichever is larger. The duration check accounts for nonzero Matroska start timestamps.
+When FFprobe is available, Send to AV1 inspects the source once, reusing its codec, duration, and stream counts for AV1 skipping, progress estimates, and output verification. It checks the temporary encoded file before assigning its final filename or reporting success. All video streams must be AV1, and video, audio, and subtitle stream counts must match the source. Reported durations must match within two seconds or 0.1% of the source duration, whichever is larger. The duration check accounts for nonzero Matroska start timestamps.
 
 If the source duration is unavailable, stream checks still run and a warning explains that duration could not be compared. If FFprobe is unavailable, encoding continues with a warning that output verification was skipped. The portable tool download includes FFprobe.
 
@@ -147,7 +147,7 @@ FFprobe supplies the total duration and FFmpeg supplies structured progress time
 
 Use **Cancel** to stop the current encode and the remaining batch. The worker stops FFmpeg and removes the incomplete output; previously completed outputs and original files are kept. Closing the window during encoding asks whether to cancel, then leaves the window open until cleanup finishes. Afterward, use **Close** to dismiss it.
 
-Cancellation also stops FFprobe and capability checks during video inspection. Each inspection process has a 30-second timeout. A timed-out codec probe skips that file with a warning; a timed-out duration probe continues without a duration estimate. Timeouts on required capability checks are reported as failures.
+Cancellation also stops FFprobe and capability checks during video inspection. Each inspection process has a 30-second timeout. A timed-out source inspection skips that file with a warning. If inspection succeeds but no valid duration is reported, encoding continues without a duration estimate and output verification checks streams only. Timeouts on required capability checks are reported as failures.
 
 The window starts compact, with the results list hidden until there is a completed, skipped, failed, or cancelled file to report. It grows to show results and expanded details, with scrolling for longer batches and smaller screens. Each result has a status icon, filename, and readable size comparison; the full output path is secondary. Green indicates successful completion, amber indicates warnings or larger outputs, and red indicates failures. **Open output folder** opens the folder of the most recently completed output. **Details** opens automatically for errors and includes precise progress timestamps; it remains collapsed during normal operation. The window stays open when the batch finishes so the results can be reviewed.
 

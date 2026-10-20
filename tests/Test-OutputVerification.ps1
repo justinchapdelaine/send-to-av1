@@ -30,7 +30,7 @@ function Invoke-Tool {
 }
 function Get-Info {
     param([string]$Path)
-    & $core { param($Tool, $Path) Get-MediaVerificationInfo -FfprobePath $Tool -Path $Path -Purpose 'Test inspection' } $ffprobe $Path
+    & $core { param($Tool, $Path) Get-MediaInfo -FfprobePath $Tool -Path $Path -Purpose 'Test inspection' } $ffprobe $Path
 }
 function Assert-Rejected {
     param([string]$Path, $Expected, [string]$Pattern)
@@ -67,6 +67,13 @@ try {
     Assert-True ($expected.VideoCount -eq 1 -and $expected.AudioCount -eq 2 -and $expected.SubtitleCount -eq 1) 'The multi-stream source fixture is invalid.'
     $run = Invoke-Case
     Assert-True ($run.Summary.Processed -eq 1 -and $run.Summary.Failed -eq 0) 'A valid real encode failed verification.'
+    $mediaQueries = @($run.Events | Where-Object { $_.Type -eq 'InspectionStarted' -and $_.Data.Purpose -notmatch '^(FFmpeg encoder check|NVIDIA capability check)$' })
+    Assert-True ($mediaQueries.Count -eq 2 -and $mediaQueries[0].Data.Purpose -eq 'Source media inspection' -and
+        $mediaQueries[1].Data.Purpose -eq 'Output verification') 'Encoding did not use exactly one source probe and one output probe.'
+    $progressEvents = @($run.Events | Where-Object Type -eq Progress)
+    Assert-True ($progressEvents.Count -gt 0 -and @($progressEvents | Where-Object {
+        [Math]::Abs($_.Data.Progress.DurationSeconds - $expected.DurationSeconds) -gt 0.001
+    }).Count -eq 0) 'Progress did not reuse the inspected source duration.'
     $completed = @($run.Events | Where-Object { $_.Type -eq 'FileResult' -and $_.Data.Status -eq 'Completed' })
     $good = $completed[0].Data.OutputPath
     $goodHash = (Get-FileHash -LiteralPath $good).Hash
@@ -130,6 +137,7 @@ try {
             $script:VerificationFixture = $Fixture
             function script:Invoke-FfmpegEncode {
                 param($FfmpegPath, $Arguments, $Activity, $DurationSeconds, [switch]$KeepLog)
+                $script:VerificationEncodeDuration = $DurationSeconds
                 Copy-Item -LiteralPath $script:VerificationFixture -Destination $Arguments[-1]
                 return 0
             }
@@ -178,6 +186,26 @@ try {
             @(Get-ChildItem -LiteralPath $tempRoot -Filter '*.tmp.*').Count -eq 0) 'Verification timeout published or retained a temporary encode.'
 
         & $core {
+            param($Query)
+            $script:VerificationQuery = $Query
+            function script:Invoke-AV1ToolQuery {
+                param($Executable, $Arguments, $Purpose, $TimeoutSeconds = 30)
+                $result = & $script:VerificationQuery -Executable $Executable -Arguments $Arguments -Purpose $Purpose -TimeoutSeconds $TimeoutSeconds
+                if ($Purpose -eq 'Source media inspection') {
+                    $metadata = $result.StandardOutput | ConvertFrom-Json
+                    $metadata.format.duration = 'N/A'
+                    $result.StandardOutput = $metadata | ConvertTo-Json -Depth 10
+                }
+                return $result
+            }
+        } $originalQuery
+        $run = Invoke-Case
+        Assert-True ($run.Summary.Processed -eq 1 -and $run.Summary.Failed -eq 0 -and
+            (& $core { $script:VerificationEncodeDuration }) -eq 0) 'An unavailable source duration prevented encoding or invented a progress estimate.'
+        Assert-True (@($run.Events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Color -eq 'Yellow' -and $_.Data.Message -match 'source duration was unavailable' }).Count -eq 1) 'Missing source duration did not retain stream verification with a warning.'
+        Assert-True (@($run.Events | Where-Object { $_.Type -eq 'InspectionStarted' -and $_.Data.Purpose -eq 'Source media inspection' }).Count -eq 1) 'Unknown duration caused a second source inspection.'
+
+        & $core {
             param($Tool)
             $script:VerificationFfmpeg = $Tool
             function script:Resolve-ToolPath {
@@ -188,6 +216,7 @@ try {
         } $ffmpeg
         $run = Invoke-Case
         Assert-True ($run.Summary.Processed -eq 1 -and $run.Summary.Failed -eq 0) 'Missing FFprobe broke the existing fallback.'
+        Assert-True (@($run.Events | Where-Object { $_.Type -eq 'InspectionStarted' -and $_.Data.Purpose -in @('Source media inspection', 'Output verification') }).Count -eq 0) 'The no-FFprobe fallback attempted media inspection.'
         Assert-True (@($run.Events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Color -eq 'Yellow' -and $_.Data.Message -match 'verification was skipped' }).Count -eq 1) 'Unverified output was not explained.'
     }
     finally {
