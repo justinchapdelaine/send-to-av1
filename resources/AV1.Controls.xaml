@@ -165,7 +165,10 @@
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                     <Path Name="DetailsChevron" Width="12" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Stretch="None"
                                           Data="M 4,4 L 8,8 L 4,12" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.7"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round">
+                                        <!-- Align optically with the text without changing the header's layout. -->
+                                        <Path.RenderTransform><TranslateTransform Y="1"/></Path.RenderTransform>
+                                    </Path>
                                     <ContentPresenter Grid.Column="1" VerticalAlignment="Center" RecognizesAccessKey="True"
                                                       TextElement.Foreground="{TemplateBinding Foreground}"/>
                                 </Grid>
