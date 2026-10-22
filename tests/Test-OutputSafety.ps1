@@ -14,7 +14,7 @@ $tokens = $null
 $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile($optimizer, [ref]$tokens, [ref]$errors)
 if ($errors.Count -ne 0) { throw 'Optimizer failed to parse.' }
-$names = @('Resolve-ToolPath', 'New-UniqueOutputPath', 'Complete-OutputFile')
+$names = @('Resolve-ToolPath', 'New-UniqueOutputPath', 'Complete-OutputFile', 'Format-CommandArgument')
 $functions = $ast.FindAll({ param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in $names
 }, $false)
@@ -96,6 +96,26 @@ try {
     catch [IO.IOException] { $failed = $true }
     Assert-True $failed 'Missing temporary output must raise an I/O error.'
     Assert-True ((Get-FileHash -LiteralPath $output).Hash -eq $before) 'Failed finalization modified an existing output.'
+
+    # A rename that keeps failing must say where the verified encode was left.
+    $stranded = Join-Path $tempRoot 'stranded.tmp.mkv'
+    Set-Content -LiteralPath $stranded -Value 'verified encode'
+    $errorText = ''
+    try {
+        Complete-OutputFile -TemporaryPath $stranded -OutputPath (Join-Path $tempRoot 'missing-folder/out.mkv') -InputFile $inputFile -Container 'mkv' | Out-Null
+    }
+    catch [IO.IOException] { $errorText = $_.Exception.Message }
+    Assert-True ($errorText.Contains($stranded) -and (Test-Path -LiteralPath $stranded)) 'A failed rename did not report the retained encode.'
+
+    # The dry-run preview must replay as the same arguments in PowerShell.
+    # FFmpeg options stay bare; a script block would split them, so check them directly.
+    Assert-True ((Format-CommandArgument -Argument '-c:v') -eq '-c:v') 'The command preview quoted a plain FFmpeg option.'
+    $samples = @('C:\Clips\a,b.mp4', 'C:\Clips\$draft.mp4', 'tick`mark', '#1', '{x}', '@x', "it's", 'a b', '', '0:a?', 'keyint=10s:tune=0', '--%')
+    $replayed = @(Invoke-Expression ('& {{ $args }} {0}' -f (($samples | ForEach-Object { Format-CommandArgument -Argument $_ }) -join ' ')))
+    Assert-True ($replayed.Count -eq $samples.Count) 'The command preview changed the argument count.'
+    for ($index = 0; $index -lt $samples.Count; $index++) {
+        Assert-True ([string]$replayed[$index] -ceq $samples[$index]) ('The command preview did not preserve: ' + $samples[$index])
+    }
     Write-Host ("Output-safety checks passed: {0}." -f $script:checks)
 }
 finally {

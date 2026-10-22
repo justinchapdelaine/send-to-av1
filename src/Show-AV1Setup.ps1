@@ -202,9 +202,10 @@ try {
     function Update-SetupTheme {
         param([switch]$Force)
         $name = Get-AV1WindowsTheme
-        if (-not $Force -and $name -eq $themeState.Name -and $name -ne 'HighContrast') { return }
+        $key = Get-AV1ThemeKey -Theme $name
+        if (-not $Force -and $key -eq $themeState.Name) { return }
         Set-AV1WindowTheme -Window $window -Theme $name
-        $themeState.Name = $name
+        $themeState.Name = $key
     }
     Update-SetupTheme
     $window.Add_SourceInitialized({ Update-SetupTheme -Force })

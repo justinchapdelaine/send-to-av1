@@ -66,6 +66,16 @@ function Get-AV1WindowsTheme {
     return 'Light'
 }
 
+function Get-AV1ThemeKey {
+    param([ValidateSet('Light', 'Dark', 'HighContrast')][string]$Theme)
+
+    # High Contrast colors can change without the theme name changing, so
+    # include the resolved palette. Callers reapply only when this key changes.
+    if ($Theme -ne 'HighContrast') { return $Theme }
+    $palette = Get-AV1ThemePalette -Theme $Theme
+    return $Theme + ':' + ((@($palette.Keys | Sort-Object) | ForEach-Object { $palette[$_] }) -join ',')
+}
+
 function Set-AV1WindowTheme {
     param([Parameter(Mandatory = $true)]$Window,
         [ValidateSet('Light', 'Dark', 'HighContrast')][string]$Theme)
@@ -110,4 +120,4 @@ namespace SendToAv1Theme {
     catch { } # Keep the native caption when immersive dark mode is unavailable.
 }
 
-Export-ModuleMember -Function Get-AV1ThemePalette, Get-AV1StatusBrushKey, Get-AV1WindowsTheme, Set-AV1WindowTheme
+Export-ModuleMember -Function Get-AV1ThemePalette, Get-AV1StatusBrushKey, Get-AV1WindowsTheme, Get-AV1ThemeKey, Set-AV1WindowTheme

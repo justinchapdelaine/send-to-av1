@@ -327,7 +327,10 @@ try {
                     else { Set-Phase $data.Status '#64748B' }
                 }
             }
-            'Summary' { $state.Summary = $data.Summary }
+            'Summary' {
+                $state.Summary = $data.Summary
+                if ($data.Summary.PSObject.Properties['Fatal'] -and $data.Summary.Fatal) { $state.Fatal = $true }
+            }
             'Fatal' {
                 $state.Fatal = $true
                 Add-Detail $data.Message
@@ -375,9 +378,10 @@ try {
     function Update-WindowTheme {
         param([switch]$Force)
         $name = Get-AV1WindowsTheme
-        if (-not $Force -and $name -eq $themeState.Name -and $name -ne 'HighContrast') { return }
+        $key = Get-AV1ThemeKey -Theme $name
+        if (-not $Force -and $key -eq $themeState.Name) { return }
         Set-AV1WindowTheme -Window $window -Theme $name
-        $themeState.Name = $name
+        $themeState.Name = $key
     }
     Update-WindowTheme
     $window.Add_SourceInitialized({ Update-WindowTheme -Force })

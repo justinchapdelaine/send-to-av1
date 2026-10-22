@@ -6,6 +6,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 #>
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'AV1.Tools.psm1') -Force -ErrorAction Stop
 $script:EventSink = $null
 $script:Cancellation = $null
 $Script:KnownVideoExtensions = @(
@@ -62,7 +63,9 @@ function Format-ByteSize {
 function Format-CommandArgument {
     param([string]$Argument)
 
-    if ($Argument -notmatch "[\s'`"&|<>;()]") {
+    # Leave only plainly literal tokens bare. Anything else (for example $, `,
+    # comma, #, braces, or @) would be parsed by PowerShell when replayed.
+    if ($Argument -match '^[A-Za-z0-9_\-.:\\/=+?]+$' -and $Argument -notmatch '^--%') {
         return $Argument
     }
 
@@ -111,7 +114,12 @@ function Invoke-AV1ToolQuery {
     $clock = [Diagnostics.Stopwatch]::StartNew()
     try {
         Assert-AV1NotCancelled
-        $started = $process.Start()
+        try { $started = $process.Start() }
+        catch {
+            # A tool that cannot start is a setup problem, not a property of the input.
+            throw (New-Object InvalidOperationException ('{0} could not start {1}: {2}' -f $Purpose,
+                [IO.Path]::GetFileName($Executable), $_.Exception.GetBaseException().Message))
+        }
         # Drain both pipes concurrently, including when a query fails verbosely.
         $stdout = $process.StandardOutput.ReadToEndAsync()
         $stderr = $process.StandardError.ReadToEndAsync()
@@ -160,15 +168,6 @@ function Get-FfmpegEncoderOutput {
     return $query.StandardOutput + $query.StandardError
 }
 
-function Test-FfmpegEncoder {
-    param(
-        [string]$EncoderOutput,
-        [string]$EncoderName
-    )
-
-    return ($EncoderOutput -match ("(?im)^\s*[A-Z\.]+\s+{0}\s" -f [Regex]::Escape($EncoderName)))
-}
-
 function Get-NvencHelpOutput {
     param([string]$FfmpegPath)
 
@@ -178,15 +177,6 @@ function Get-NvencHelpOutput {
     }
 
     return $query.StandardOutput + $query.StandardError
-}
-
-function Test-NvencTuneSupport {
-    param(
-        [string]$NvencHelpOutput,
-        [string]$TuneName
-    )
-
-    return ($NvencHelpOutput -match ("(?im)^\s+{0}\s+" -f [Regex]::Escape($TuneName)))
 }
 
 function Resolve-NvencTune {
@@ -221,16 +211,6 @@ function Resolve-NvencTune {
     }
 
     throw 'This FFmpeg build supports av1_nvenc, but neither -tune uhq nor -tune hq was found.'
-}
-
-function Format-CapabilityStatus {
-    param([bool]$Available)
-
-    if ($Available) {
-        return 'Available'
-    }
-
-    return 'Unavailable'
 }
 
 function Test-LikelyVideoFile {
@@ -279,18 +259,8 @@ function Get-ToolCapabilities {
 function Write-CapabilitySummary {
     param([PSCustomObject]$Capabilities)
 
-    $nvencTuneStatus = 'Unavailable'
-    if ($Capabilities.HasNvencAv1) {
-        if ($Capabilities.NvencSupportsUhq) {
-            $nvencTuneStatus = 'UHQ available'
-        }
-        elseif ($Capabilities.NvencSupportsHq) {
-            $nvencTuneStatus = 'HQ available; UHQ unavailable'
-        }
-        else {
-            $nvencTuneStatus = 'Tune options unavailable'
-        }
-    }
+    $nvencTuneStatus = Format-NvencTuneStatus -HasNvenc $Capabilities.HasNvencAv1 `
+        -SupportsUhq $Capabilities.NvencSupportsUhq -SupportsHq $Capabilities.NvencSupportsHq
 
     Write-AV1Message ''
     Write-AV1Message 'Capability summary:'
@@ -389,11 +359,16 @@ function Get-SourceMediaInfo {
         return Get-MediaInfo -FfprobePath $FfprobePath -Path $Path -Purpose 'Source media inspection'
     }
     catch [OperationCanceledException] { throw }
+    catch [InvalidOperationException] { throw }
     catch [TimeoutException] {
         Write-AV1Message ('Warning: {0} The file will be skipped.' -f $_.Exception.Message) -ForegroundColor Yellow
         return $null
     }
-    catch { return $null }
+    catch {
+        # Non-media inputs are routine skips, but keep FFprobe's reason in Details.
+        Write-AV1Message $_.Exception.Message
+        return $null
+    }
 }
 
 function Get-VideoDurationSeconds {
@@ -431,7 +406,7 @@ function Get-MediaInfo {
     param([string]$FfprobePath, [string]$Path, [string]$Purpose)
 
     $query = Invoke-AV1ToolQuery -Executable $FfprobePath -Arguments @(
-        '-v', 'error', '-show_entries', 'format=duration,start_time,format_name:stream=codec_type,codec_name,start_time,duration:stream_tags=DURATION', '-of', 'json', $Path
+        '-v', 'error', '-show_entries', 'format=duration,start_time,format_name:stream=codec_type,codec_name,start_time,duration:stream_disposition=attached_pic:stream_tags=DURATION', '-of', 'json', $Path
     ) -Purpose $Purpose
     if ($query.ExitCode -ne 0) { throw ('{0} failed: {1}' -f $Purpose, $query.StandardError.Trim()) }
     try {
@@ -462,8 +437,14 @@ function Get-MediaInfo {
         $codecs = @($video | ForEach-Object {
             if ($_.PSObject.Properties['codec_name']) { ([string]$_.codec_name).Trim().ToLowerInvariant() } else { '' }
         })
+        # Cover art is exposed as a one-frame video stream. It is copied, not
+        # encoded, so track it by position alongside the real video streams.
+        $attached = @($video | ForEach-Object {
+            $_.PSObject.Properties['disposition'] -and $null -ne $_.disposition -and
+                $_.disposition.PSObject.Properties['attached_pic'] -and [int]$_.disposition.attached_pic -eq 1
+        })
         return [PSCustomObject]@{
-            VideoCount = $video.Count; VideoCodecs = $codecs
+            VideoCount = $video.Count; VideoCodecs = $codecs; VideoAttachedPictures = $attached
             VideoDurationsSeconds = @($video | ForEach-Object { Get-VideoDurationSeconds -Stream $_ -IsMatroska $isMatroska })
             AudioCount = @($streams | Where-Object { $_.codec_type -eq 'audio' }).Count
             SubtitleCount = @($streams | Where-Object { $_.codec_type -eq 'subtitle' }).Count
@@ -473,11 +454,24 @@ function Get-MediaInfo {
     catch { throw ('{0} returned invalid media information: {1}' -f $Purpose, $_.Exception.Message) }
 }
 
+function Get-VideoStreamPosition {
+    param([PSCustomObject]$Info, [switch]$AttachedPicture)
+
+    $positions = @()
+    for ($index = 0; $index -lt $Info.VideoCount; $index++) {
+        if ([bool]$Info.VideoAttachedPictures[$index] -eq [bool]$AttachedPicture) { $positions += $index }
+    }
+    return ,$positions
+}
+
 function Assert-AV1Output {
     param([string]$FfprobePath, [string]$Path, [PSCustomObject]$Expected)
 
     $actual = Get-MediaInfo -FfprobePath $FfprobePath -Path $Path -Purpose 'Output verification'
-    if ($actual.VideoCount -lt 1 -or @($actual.VideoCodecs | Where-Object { $_ -ne 'av1' }).Count -gt 0) {
+    # Output video streams keep the source order, so compare by position.
+    # Copied cover art keeps its image codec and has no meaningful duration.
+    $encodedVideo = Get-VideoStreamPosition -Info $Expected
+    if ($encodedVideo.Count -lt 1 -or @($encodedVideo | Where-Object { $actual.VideoCodecs[$_] -ne 'av1' }).Count -gt 0) {
         throw 'Output verification failed: the output does not contain only AV1 video streams.'
     }
     foreach ($kind in @('Video', 'Audio', 'Subtitle')) {
@@ -500,7 +494,7 @@ function Assert-AV1Output {
         Write-AV1Message 'Warning: The source duration was unavailable for container comparison.' -ForegroundColor Yellow
     }
     $unknownVideoDurations = 0
-    for ($index = 0; $index -lt $Expected.VideoCount; $index++) {
+    foreach ($index in $encodedVideo) {
         $expectedDuration = $Expected.VideoDurationsSeconds[$index]
         $actualDuration = $actual.VideoDurationsSeconds[$index]
         if ($expectedDuration -le 0) { $unknownVideoDurations++; continue }
@@ -736,6 +730,7 @@ function Complete-OutputFile {
         [string]$Container
     )
 
+    $lockedAttempts = 0
     for ($attempt = 0; $attempt -lt 10000; $attempt++) {
         try {
             # The two-argument File.Move never replaces an existing destination.
@@ -744,11 +739,18 @@ function Complete-OutputFile {
             return $OutputPath
         }
         catch [System.IO.IOException] {
-            # Only retry name collisions; preserve the encoded temporary file
-            # and surface unrelated errors such as missing files or I/O failures.
-            if (-not (Test-Path -LiteralPath $TemporaryPath -PathType Leaf) -or
-                -not (Test-Path -LiteralPath $OutputPath)) {
-                throw
+            if (-not (Test-Path -LiteralPath $TemporaryPath -PathType Leaf)) { throw }
+            if (-not (Test-Path -LiteralPath $OutputPath)) {
+                # Not a name collision. Scanners and indexers can briefly lock a
+                # new file, so retry before giving up, then report where the
+                # verified encode was left instead of losing track of it.
+                $lockedAttempts++
+                if ($lockedAttempts -le 5) {
+                    Start-Sleep -Milliseconds 500
+                    continue
+                }
+                throw (New-Object IO.IOException ("Could not rename the verified output: {0} Encoded video remains at '{1}'." -f
+                    $_.Exception.Message, $TemporaryPath), $_.Exception)
             }
             $OutputPath = New-UniqueOutputPath -InputFile $InputFile -Container $Container
         }
@@ -793,12 +795,16 @@ function Convert-VideoToAv1 {
     # output verification. Do not cache across files or later batch invocations.
     $sourceInfo = Get-SourceMediaInfo -FfprobePath $FfprobePath -Path $resolvedInput
     $codec = $null
-    if ($null -ne $sourceInfo -and $sourceInfo.VideoCount -gt 0 -and
-        -not [string]::IsNullOrWhiteSpace($sourceInfo.VideoCodecs[0])) {
-        $codec = $sourceInfo.VideoCodecs[0]
+    $coverArt = @()
+    if ($null -ne $sourceInfo) {
+        $primary = Get-VideoStreamPosition -Info $sourceInfo
+        $coverArt = Get-VideoStreamPosition -Info $sourceInfo -AttachedPicture
+        if ($primary.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($sourceInfo.VideoCodecs[$primary[0]])) {
+            $codec = $sourceInfo.VideoCodecs[$primary[0]]
+        }
     }
     if ($codec -eq 'av1' -and -not $Small) {
-        Write-AV1Message 'Skipped: source video codec is already AV1.' -ForegroundColor Yellow
+        Write-AV1Message 'Skipped: source video codec is already AV1.' -ForegroundColor Cyan
         $Script:SkippedCount++
         Send-AV1Event -Type 'FileResult' -Data @{ Path = $resolvedInput; Status = 'Skipped'; Message = 'Already AV1' }
         return
@@ -806,7 +812,7 @@ function Convert-VideoToAv1 {
 
     if ($null -eq $codec) {
         if (-not [string]::IsNullOrWhiteSpace($FfprobePath)) {
-            Write-AV1Message 'Skipped: ffprobe did not find a primary video stream.' -ForegroundColor Yellow
+            Write-AV1Message 'Skipped: ffprobe did not find a primary video stream.' -ForegroundColor Cyan
             $Script:SkippedCount++
             Send-AV1Event -Type 'FileResult' -Data @{ Path = $resolvedInput; Status = 'Skipped'; Message = 'No supported video stream' }
             return
@@ -815,7 +821,7 @@ function Convert-VideoToAv1 {
         # Without ffprobe we cannot inspect streams safely, so use only a
         # conservative extension check before attempting conversion.
         if (-not (Test-LikelyVideoFile -Path $resolvedInput)) {
-            Write-AV1Message 'Skipped: file extension is not recognized as a common video type, and ffprobe is unavailable.' -ForegroundColor Yellow
+            Write-AV1Message 'Skipped: file extension is not recognized as a common video type, and ffprobe is unavailable.' -ForegroundColor Cyan
             $Script:SkippedCount++
             Send-AV1Event -Type 'FileResult' -Data @{ Path = $resolvedInput; Status = 'Skipped'; Message = 'No supported video stream' }
             return
@@ -861,7 +867,18 @@ function Convert-VideoToAv1 {
         '-map_chapters', '0',
         '-c', 'copy'
     )
-    $ffmpegArgs += @($EncoderConfiguration.FfmpegVideoArgs)
+    if ($coverArt.Count -eq 0) { $ffmpegArgs += @($EncoderConfiguration.FfmpegVideoArgs) }
+    else {
+        # Encode only the real video streams and copy cover art unchanged. Scope
+        # every option per output stream: a filter on a copied stream is an error.
+        foreach ($index in $primary) {
+            $videoArgs = @($EncoderConfiguration.FfmpegVideoArgs)
+            for ($i = 0; $i -lt $videoArgs.Count; $i += 2) {
+                $name = $videoArgs[$i] -replace '^-vf$', '-filter' -replace ':v$', ''
+                $ffmpegArgs += @(('{0}:v:{1}' -f $name, $index), $videoArgs[$i + 1])
+            }
+        }
+    }
     $ffmpegArgs += $tempOutput
 
     if ($DryRun) {
@@ -1022,6 +1039,7 @@ function Invoke-AV1Batch {
     $script:EventSink = $EventSink
     $script:Cancellation = $Cancellation
     $cancelled = $false
+    $fatal = $false
     try {
         try {
             Assert-AV1NotCancelled
@@ -1098,7 +1116,7 @@ function Invoke-AV1Batch {
 
                 if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
                     Write-Section ("Skipping missing path: {0}" -f $path)
-                    Write-AV1Message 'Skipped: path does not exist or is not a file.' -ForegroundColor Yellow
+                    Write-AV1Message 'Skipped: path does not exist or is not a file.' -ForegroundColor Cyan
                     $Script:SkippedCount++
                     Send-AV1Event -Type 'FileResult' -Data @{ Path = $path; Status = 'Skipped'; Message = 'File not found' }
                     continue
@@ -1146,12 +1164,14 @@ function Invoke-AV1Batch {
             Write-AV1Message ''
             Write-AV1Message 'Fatal error:' -ForegroundColor Red
             Write-AV1Message $_.Exception.Message -ForegroundColor Red
-            $Script:FailedCount++
+            # The batch stopped before (or outside) per-file handling, so this
+            # is not a failed file. Callers report it as a batch failure.
+            $fatal = $true
         }
         $savedBytes = $Script:TotalInputBytes - $Script:TotalOutputBytes
         $summary = [PSCustomObject]@{
             Processed = $Script:ProcessedCount; Skipped = $Script:SkippedCount; Failed = $Script:FailedCount
-            Planned = $Script:PlannedCount; Cancelled = $cancelled
+            Planned = $Script:PlannedCount; Cancelled = $cancelled; Fatal = $fatal
             InputBytes = $Script:TotalInputBytes; OutputBytes = $Script:TotalOutputBytes
             SavedBytes = $savedBytes; SavedText = (Format-ByteSize $savedBytes)
         }

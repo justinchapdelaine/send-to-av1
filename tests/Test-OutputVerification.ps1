@@ -85,6 +85,28 @@ try {
     Assert-True ($verificationIndex -ge 0 -and $completionIndex -gt $verificationIndex) 'Completion was reported before verification.'
     Assert-True (@($run.Events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Message -eq 'Output verification passed.' }).Count -eq 1) 'Successful verification was not reported.'
 
+    # Cover art is a one-frame video stream: copy it, never encode it as AV1.
+    # Keep these fixtures apart from the output-count checks below.
+    $coverRoot = (New-Item -ItemType Directory -Path (Join-Path $tempRoot 'cover')).FullName
+    $cover = Join-Path $coverRoot 'cover.png'
+    $coverSource = Join-Path $coverRoot 'cover art.mp4'
+    Invoke-Tool @('-v', 'error', '-f', 'lavfi', '-i', 'color=red:size=64x64', '-frames:v', '1', $cover)
+    Invoke-Tool @('-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=128x128:rate=10', '-f', 'lavfi', '-i', 'sine=frequency=400',
+        '-i', $cover, '-map', '0:v', '-map', '1:a', '-map', '2:v', '-t', '3', '-c:v:0', 'mpeg4', '-c:v:1', 'png', '-c:a', 'aac',
+        '-disposition:v:1', 'attached_pic', $coverSource)
+    $coverInfo = Get-Info $coverSource
+    Assert-True ($coverInfo.VideoCount -eq 2 -and -not $coverInfo.VideoAttachedPictures[0] -and $coverInfo.VideoAttachedPictures[1]) 'The cover-art fixture is invalid.'
+    $run = Invoke-Case -InputFile $coverSource
+    $coverOutput = @($run.Events | Where-Object { $_.Type -eq 'FileResult' -and $_.Data.Status -eq 'Completed' })
+    Assert-True ($run.Summary.Processed -eq 1 -and $run.Summary.Failed -eq 0 -and $coverOutput.Count -eq 1) 'A source with cover art failed to encode.'
+    $coverResult = Get-Info $coverOutput[0].Data.OutputPath
+    Assert-True ($coverResult.VideoCount -eq 2 -and $coverResult.VideoCodecs[0] -eq 'av1' -and $coverResult.VideoCodecs[1] -eq 'png') 'Cover art was re-encoded instead of copied.'
+    Assert-True (@($run.Events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Color -eq 'Yellow' }).Count -eq 0) 'Copied cover art produced a verification warning.'
+    $coverOnly = Join-Path $coverRoot 'cover only.mp4'
+    Invoke-Tool @('-v', 'error', '-i', $coverSource, '-map', '0:a', '-map', '0:v:1', '-c', 'copy', '-disposition:v:0', 'attached_pic', $coverOnly)
+    $run = Invoke-Case -InputFile $coverOnly
+    Assert-True ($run.Summary.Skipped -eq 1 -and $run.Summary.Processed -eq 0) 'Audio with only cover art was encoded as video.'
+
     Assert-Rejected $source $expected 'only AV1'
     $audioOnly = Join-Path $tempRoot 'audio-only.mkv'
     Invoke-Tool @('-v', 'error', '-i', $good, '-map', '0:a', '-c', 'copy', $audioOnly)
@@ -295,6 +317,14 @@ try {
         & $core { param($Encode, $Resolve, $Query) Set-Item Function:script:Invoke-FfmpegEncode $Encode; Set-Item Function:script:Resolve-ToolPath $Resolve; Set-Item Function:script:Invoke-AV1ToolQuery $Query } $originalEncode $originalResolve $originalQuery
     }
     Assert-True ((Get-FileHash -LiteralPath $source).Hash -eq $sourceHash -and (Get-FileHash -LiteralPath $good).Hash -eq $goodHash) 'Verification modified an original or existing completed output.'
+    # Batch-level errors are not failed files.
+    $fatal = Invoke-AV1Batch -InputPath @($source, $source) -Small -Encoder nvenc -EventSink { param($update) }
+    Assert-True ($fatal.Fatal -and $fatal.Failed -eq 0 -and $fatal.Processed -eq 0) 'A batch-level error was counted as a failed file.'
+    # An FFprobe that cannot start is a tool problem, not a file without video.
+    $startError = $null
+    try { & $core { Get-SourceMediaInfo -FfprobePath (Join-Path $args[0] 'missing-ffprobe.exe') -Path $args[1] } $tempRoot $source }
+    catch { $startError = $_.Exception }
+    Assert-True ($startError -is [InvalidOperationException] -and $startError.Message -match 'could not start') 'An FFprobe start failure was reported as a skipped file.'
     Write-Host ('Output verification checks passed: {0}.' -f $script:checks)
 }
 finally {

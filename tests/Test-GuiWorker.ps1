@@ -133,7 +133,7 @@ try {
     Complete-AV1Worker $worker
     $worker = $null
     $summary = @($events | Where-Object { $_.Type -eq 'Summary' })[0].Data.Summary
-    Assert-True ($summary.Failed -eq 1 -and $summary.Processed -eq 0) 'Startup failure did not reach the summary.'
+    Assert-True ($summary.Fatal -and $summary.Failed -eq 0 -and $summary.Processed -eq 0) 'Startup failure did not reach the summary as a batch error.'
     Assert-True (@($events | Where-Object { $_.Type -eq 'Message' -and $_.Data.Message -match 'cannot be combined' }).Count -gt 0) 'Startup failure details were lost.'
     Write-Host ('GUI worker checks passed: {0}.' -f $script:checks)
 }

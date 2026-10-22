@@ -11,6 +11,7 @@ Run commands below from the project folder. Use temporary clips for encoding che
 | Path | Purpose |
 | --- | --- |
 | `src/AV1.Core.psm1` | Shared encoding engine, tool inspection, progress, and output handling |
+| `src/AV1.Tools.psm1` | FFmpeg encoder and NVENC capability detection shared by encoding and setup |
 | `src/Optimize-AV1.ps1` | Console interface |
 | `src/Show-AV1Progress.ps1` | WPF progress window |
 | `src/AV1.Worker.psm1` | Background runspace and event queue |

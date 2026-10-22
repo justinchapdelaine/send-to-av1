@@ -129,7 +129,8 @@ function Get-AV1CompletionView {
     }
 
     $batchSummary = ''
-    if ($FileCount -gt 1 -and $null -ne $Summary) {
+    # A batch-level error leaves the per-file counts meaningless.
+    if ($FileCount -gt 1 -and $null -ne $Summary -and -not $Fatal) {
         $batchSummary = '{0} completed {3} {1} skipped {3} {2} failed' -f $Summary.Processed, $Summary.Skipped, $Summary.Failed, [char]0xb7
         if ($Summary.Processed -gt 0) {
             if ($Summary.SavedBytes -ge 0) { $batchSummary += ' {0} {1} saved' -f [char]0xb7, (Format-AV1Size $Summary.SavedBytes) }

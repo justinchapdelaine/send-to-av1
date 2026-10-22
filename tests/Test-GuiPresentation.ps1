@@ -94,5 +94,7 @@ $view = Get-AV1CompletionView -Summary $null -FileCount 1 -ElapsedSeconds 0
 Assert-True ($view.Title -eq 'Could not complete encoding' -and $view.ShowDetails -and $view.Subtitle -eq 'Stopped after 0s') 'A missing worker summary was presented as success.'
 $view = Get-AV1CompletionView -Summary $summary -FileCount 1 -ElapsedSeconds 10 -Fatal $true
 Assert-True ($view.Color -eq '#B91C1C' -and $view.ShowDetails -and -not $view.HideResultStatus) 'A fatal display error was masked by the worker summary.'
+$view = Get-AV1CompletionView -Summary $summary -FileCount 3 -ElapsedSeconds 1 -Fatal $true
+Assert-True ($view.Title -eq 'Could not complete encoding' -and $view.BatchSummary -eq '') 'A batch-level error was presented as per-file counts.'
 Assert-True ((Get-AV1CompletionView -Summary $summary -FileCount 1 -ElapsedSeconds 97205).Subtitle -eq 'Finished in 27h 0m 5s') 'Completion duration wrapped at midnight.'
 Write-Host ('GUI presentation checks passed: {0}.' -f $script:checks)

@@ -26,6 +26,11 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'AV1.Tools.psm1') -Force -ErrorAction Stop
+
+# Windows PowerShell 5.1 may default to protocols GitHub no longer accepts.
+# Add TLS 1.2 without removing anything the system already allows.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 $Script:Provider = 'BtbN'
 $Script:ReleaseApiUrl = 'https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/latest'
@@ -166,24 +171,6 @@ function Test-LocalToolExecutables {
     return $true
 }
 
-function Test-FfmpegEncoder {
-    param(
-        [string]$EncoderOutput,
-        [string]$EncoderName
-    )
-
-    return ($EncoderOutput -match ("(?im)^\s*[A-Z\.]+\s+{0}\s" -f [Regex]::Escape($EncoderName)))
-}
-
-function Test-NvencTuneSupport {
-    param(
-        [string]$NvencHelpOutput,
-        [string]$TuneName
-    )
-
-    return ($NvencHelpOutput -match ("(?im)^\s+{0}\s+" -f [Regex]::Escape($TuneName)))
-}
-
 function Write-ToolCapabilitySummary {
     param([string]$BinDirectory)
 
@@ -198,7 +185,7 @@ function Write-ToolCapabilitySummary {
     $hasFfprobe = Test-Path -LiteralPath $ffprobePath -PathType Leaf
     $hasSvt = $false
     $hasNvenc = $false
-    $nvencTuneStatus = 'Unavailable'
+    $nvencTuneStatus = Format-NvencTuneStatus -HasNvenc $false
 
     try {
         $encoderOutput = & $ffmpegPath -hide_banner -encoders 2>&1 | Out-String
@@ -212,15 +199,9 @@ function Write-ToolCapabilitySummary {
         if ($hasNvenc) {
             $nvencHelpOutput = & $ffmpegPath -hide_banner -h encoder=av1_nvenc 2>&1 | Out-String
             if ($LASTEXITCODE -eq 0) {
-                if (Test-NvencTuneSupport -NvencHelpOutput $nvencHelpOutput -TuneName 'uhq') {
-                    $nvencTuneStatus = 'UHQ available'
-                }
-                elseif (Test-NvencTuneSupport -NvencHelpOutput $nvencHelpOutput -TuneName 'hq') {
-                    $nvencTuneStatus = 'HQ available; UHQ unavailable'
-                }
-                else {
-                    $nvencTuneStatus = 'Tune options unavailable'
-                }
+                $nvencTuneStatus = Format-NvencTuneStatus -HasNvenc $true `
+                    -SupportsUhq (Test-NvencTuneSupport -NvencHelpOutput $nvencHelpOutput -TuneName 'uhq') `
+                    -SupportsHq (Test-NvencTuneSupport -NvencHelpOutput $nvencHelpOutput -TuneName 'hq')
             }
             else {
                 $nvencTuneStatus = 'Options query failed'
@@ -233,8 +214,8 @@ function Write-ToolCapabilitySummary {
 
     Write-Host ''
     Write-Host 'Installed FFmpeg capability summary:'
-    Write-Host ('  FFprobe:           {0}' -f $(if ($hasFfprobe) { 'Available' } else { 'Unavailable' }))
-    Write-Host ('  CPU/SVT-AV1:       {0}' -f $(if ($hasSvt) { 'Available' } else { 'Unavailable' }))
+    Write-Host ('  FFprobe:           {0}' -f (Format-CapabilityStatus $hasFfprobe))
+    Write-Host ('  CPU/SVT-AV1:       {0}' -f (Format-CapabilityStatus $hasSvt))
     Write-Host ('  NVIDIA AV1 NVENC:  {0}' -f $(if ($hasNvenc) { 'Available in FFmpeg' } else { 'Unavailable' }))
     Write-Host ('  NVIDIA tune:       {0}' -f $nvencTuneStatus)
     if ($hasNvenc) {
@@ -346,6 +327,57 @@ function Test-AssetDigest {
     Write-Host 'SHA256 verification passed.'
 }
 
+function Install-ToolPair {
+    param(
+        [string]$BinDirectory,
+        [hashtable]$Sources
+    )
+
+    $suffix = [Guid]::NewGuid().ToString('N')
+    $names = @($Sources.Keys | Sort-Object)
+    foreach ($name in $names) {
+        # Backups from an earlier update may have been locked by a running tool.
+        Get-ChildItem -LiteralPath $BinDirectory -Filter ('{0}.*.old' -f $name) -File -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+    # Stage both executables first so a failed copy never touches the installed
+    # pair, then swap them in. Keep backups until both are in place, so a failure
+    # partway through restores the previous pair instead of mixing builds.
+    $swapped = @()
+    try {
+        foreach ($name in $names) {
+            Copy-Item -LiteralPath $Sources[$name] -Destination (Join-Path $BinDirectory ('{0}.{1}.new' -f $name, $suffix)) -Force
+        }
+        foreach ($name in $names) {
+            $target = Join-Path $BinDirectory $name
+            # Windows allows renaming an executable that is running, so tools in
+            # use by an encode are replaced and their old copy is removed later.
+            if (Test-Path -LiteralPath $target -PathType Leaf) {
+                [IO.File]::Move($target, (Join-Path $BinDirectory ('{0}.{1}.old' -f $name, $suffix)))
+            }
+            $swapped += $name
+            [IO.File]::Move((Join-Path $BinDirectory ('{0}.{1}.new' -f $name, $suffix)), $target)
+        }
+    }
+    catch {
+        foreach ($name in $swapped) {
+            $target = Join-Path $BinDirectory $name
+            $backup = Join-Path $BinDirectory ('{0}.{1}.old' -f $name, $suffix)
+            if (Test-Path -LiteralPath $target -PathType Leaf) { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $backup -PathType Leaf) { [IO.File]::Move($backup, $target) }
+        }
+        throw
+    }
+    finally {
+        foreach ($name in $names) {
+            foreach ($extension in @('new', 'old')) {
+                $leftover = Join-Path $BinDirectory ('{0}.{1}.{2}' -f $name, $suffix, $extension)
+                if (Test-Path -LiteralPath $leftover) { Remove-Item -LiteralPath $leftover -Force -ErrorAction SilentlyContinue }
+            }
+        }
+    }
+}
+
 function Install-FFmpegArchive {
     param(
         [string]$ArchivePath,
@@ -366,8 +398,9 @@ function Install-FFmpegArchive {
         }
 
         New-Item -ItemType Directory -Force -Path $BinDirectory | Out-Null
-        Copy-Item -LiteralPath $ffmpegSource.FullName -Destination (Join-Path $BinDirectory 'ffmpeg.exe') -Force
-        Copy-Item -LiteralPath $ffprobeSource.FullName -Destination (Join-Path $BinDirectory 'ffprobe.exe') -Force
+        Install-ToolPair -BinDirectory $BinDirectory -Sources @{
+            'ffmpeg.exe' = $ffmpegSource.FullName; 'ffprobe.exe' = $ffprobeSource.FullName
+        }
     }
     finally {
         if (Test-Path -LiteralPath $extractDirectory) {

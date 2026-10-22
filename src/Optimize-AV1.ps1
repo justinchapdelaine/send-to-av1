@@ -55,7 +55,7 @@ try {
     $options = @{} + $PSBoundParameters
     $options.Remove('NoPause')
     $result = Invoke-AV1Batch @options
-    if ($null -ne $result -and $result.Failed -gt 0) { $exitCode = 1 }
+    if ($null -ne $result -and ($result.Failed -gt 0 -or $result.Fatal)) { $exitCode = 1 }
 }
 catch {
     Write-Host ('Failed: {0}' -f $_.Exception.Message) -ForegroundColor Red
